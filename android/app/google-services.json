@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "373987499196",
+    "project_id": "head-sense-1111",
+    "storage_bucket": "head-sense-1111.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:373987499196:android:85979a8d5de24b5647c4b9",
+        "android_client_info": {
+          "package_name": "com.mycompany.headsense"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCb4RiHJhgY_FBf2ZGanYUPqlYCQ6HNTrA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

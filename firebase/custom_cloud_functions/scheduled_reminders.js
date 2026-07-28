@@ -1,0 +1,127 @@
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+
+admin.initializeApp();
+
+exports.scheduledReminders = functions.pubsub
+  .schedule("every 5 minutes")
+  .onRun(async () => {
+    const db = admin.firestore();
+    const now = admin.firestore.Timestamp.now();
+
+    const remindersRef = db.collection("reminders");
+    const notificationsRef = db.collection("notifications");
+
+    const snapshot = await remindersRef
+      .where("scheduled_time", "<=", now)
+      .where("is_active", "==", true)
+      .get();
+
+    if (snapshot.empty) {
+      console.log("No reminders due.");
+      return null;
+    }
+
+    for (const doc of snapshot.docs) {
+      const reminder = doc.data();
+
+      const { title, message, scheduled_time, frequency_type, user_ref } =
+        reminder;
+
+      if (!user_ref) {
+        console.error(`Reminder ${doc.id} missing user_ref`);
+        continue;
+      }
+
+      await sendPushNotification(title || "Reminder", message || "", user_ref);
+
+      await notificationsRef.add({
+        noti_title: title || "Reminder",
+        noti_description: message || "",
+        noti_created_time: admin.firestore.FieldValue.serverTimestamp(),
+        noti_received_by: user_ref,
+        noti_read: false,
+        reminder_ref: doc.ref,
+      });
+
+      const nextDate = getNextReminderDate(scheduled_time, frequency_type);
+
+      if (nextDate) {
+        await remindersRef.doc(doc.id).update({
+          scheduled_time: admin.firestore.Timestamp.fromDate(nextDate),
+        });
+      } else {
+        await remindersRef.doc(doc.id).update({
+          is_active: false,
+        });
+      }
+    }
+
+    return null;
+  });
+
+function getNextReminderDate(scheduledTime, frequencyType) {
+  if (!scheduledTime || !frequencyType) {
+    return null;
+  }
+
+  const currentDate = scheduledTime.toDate();
+
+  if (frequencyType === "daily") {
+    return new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  if (frequencyType === "weekly") {
+    return new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  }
+
+  if (frequencyType === "none") {
+    return null;
+  }
+
+  return null;
+}
+
+async function sendPushNotification(title, body, userRef) {
+  try {
+    const tokensSnapshot = await userRef.collection("fcm_tokens").get();
+
+    if (tokensSnapshot.empty) {
+      console.log("No FCM tokens found.");
+      return;
+    }
+
+    const tokens = tokensSnapshot.docs
+      .map((doc) => doc.data().fcm_token)
+      .filter(Boolean);
+
+    if (tokens.length === 0) {
+      console.log("No valid FCM tokens.");
+      return;
+    }
+
+    const response = await admin.messaging().sendEachForMulticast({
+      notification: {
+        title,
+        body,
+      },
+      android: {
+        notification: {
+          sound: "default",
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: "default",
+          },
+        },
+      },
+      tokens,
+    });
+
+    console.log("Push notification sent:", response);
+  } catch (error) {
+    console.error("Error sending push notification:", error);
+  }
+}

@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /diary_todo/{document} {
+      allow create: if request.resource.data.user_name == /databases/$(database)/documents/users/$(request.auth.uid);
+      allow read: if request.auth.uid == resource.data.uid;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /diary_entries/{document} {
+      allow create: if request.resource.data.userRef == /databases/$(database)/documents/users/$(request.auth.uid);
+      allow read: if resource.data.userRef == /databases/$(database)/documents/users/$(request.auth.uid);
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /metrics/{document} {
+      allow create: if true;
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /diary_entries/{parent}/responses/{document} {
+      allow create: if true;
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /{path=**}/responses/{document} {
+      allow read: if true;
+    }
+
+
+    match /plans/{document} {
+      allow create: if true;
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /studies/{document} {
+      allow create: if true;
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /users/{document} {
+      allow create: if true;
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /dashboard/{document} {
+      allow create: if true;
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /dashboard/{parent}/daily_values/{document} {
+      allow create: if true;
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /{path=**}/daily_values/{document} {
+      allow read: if true;
+    }
+
+
+    match /users/{parent}/reminders/{document} {
+      allow create: if request.auth.uid == parent;
+      allow read: if request.auth.uid == parent;
+      allow write: if request.auth.uid == parent;
+      allow delete: if request.auth.uid == parent;
+    }
+  }
+}
