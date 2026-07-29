@@ -1,6 +1,8 @@
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
 import '/components/recurrent_reminder_widget.dart';
+import '/components/reminder_items_widget.dart';
+import '/custom_code/widgets/index.dart';
 import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -100,7 +102,18 @@ class _RemindersWidgetState extends State<RemindersWidget> {
                   size: 24.0,
                 ),
                 onPressed: () {
-                  print('IconButton pressed ...');
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor:
+                        FlutterFlowTheme.of(context).secondaryBackground,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(16.0),
+                      ),
+                    ),
+                    builder: (context) => AddReminderSheetWidget(),
+                  );
                 },
               ),
             ),
@@ -666,6 +679,101 @@ class _RemindersWidgetState extends State<RemindersWidget> {
                             );
                           },
                         ),
+                      ),
+                      Padding(
+                        padding:
+                            EdgeInsetsDirectional.fromSTEB(4.0, 0.0, 4.0, 0.0),
+                        child: Align(
+                          alignment: AlignmentDirectional(-1.0, 0.0),
+                          child: Text(
+                            'Wellness reminders',
+                            style:
+                                FlutterFlowTheme.of(context).labelLarge.override(
+                                      font: GoogleFonts.inter(
+                                        fontWeight: FontWeight.w600,
+                                        fontStyle: FlutterFlowTheme.of(context)
+                                            .labelLarge
+                                            .fontStyle,
+                                      ),
+                                      color:
+                                          FlutterFlowTheme.of(context)
+                                              .secondaryText,
+                                      letterSpacing: 0.0,
+                                      fontWeight: FontWeight.w600,
+                                      fontStyle: FlutterFlowTheme.of(context)
+                                          .labelLarge
+                                          .fontStyle,
+                                    ),
+                          ),
+                        ),
+                      ),
+                      StreamBuilder<List<RemindersRecord>>(
+                        stream: queryRemindersRecord(
+                          queryBuilder: (remindersRecord) => remindersRecord
+                              .where(
+                            'user_ref',
+                            isEqualTo: currentUserReference,
+                          ),
+                        ),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) {
+                            return Center(
+                              child: SizedBox(
+                                width: 50.0,
+                                height: 50.0,
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    FlutterFlowTheme.of(context).primary,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          const wellnessTypes = {
+                            'rest_eyes',
+                            'drink_water',
+                            'stand_up',
+                            'custom',
+                          };
+                          final wellnessReminders = snapshot.data!
+                              .where((r) => wellnessTypes.contains(r.type))
+                              .toList();
+                          if (wellnessReminders.isEmpty) {
+                            return Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: Text(
+                                'No wellness reminders yet. Tap the bell above to add one.',
+                                style: FlutterFlowTheme.of(context)
+                                    .bodyMedium
+                                    .override(
+                                      font: GoogleFonts.inter(),
+                                      color: FlutterFlowTheme.of(context)
+                                          .secondaryText,
+                                    ),
+                              ),
+                            );
+                          }
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(wellnessReminders.length,
+                                (index) {
+                              final reminderItem = wellnessReminders[index];
+                              return wrapWithModel(
+                                model: _model.reminderItemsModels.getModel(
+                                  reminderItem.reference.id,
+                                  index,
+                                ),
+                                updateCallback: () => safeSetState(() {}),
+                                child: ReminderItemsWidget(
+                                  key: Key(
+                                    'reminderItem_${reminderItem.reference.id}',
+                                  ),
+                                  reminderRecord: reminderItem,
+                                ),
+                              );
+                            }),
+                          );
+                        },
                       ),
                       wrapWithModel(
                         model: _model.recurrentReminderModel,
