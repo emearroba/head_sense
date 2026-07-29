@@ -15,6 +15,20 @@
       ]
     },
     {
+      "collectionGroup": "reminders",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "is_active",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scheduled_time",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "dashboard",
       "queryScope": "COLLECTION",
       "fields": [

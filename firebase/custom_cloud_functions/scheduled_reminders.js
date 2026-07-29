@@ -9,10 +9,12 @@ exports.scheduledReminders = functions.pubsub
     const db = admin.firestore();
     const now = admin.firestore.Timestamp.now();
 
-    const remindersRef = db.collection("reminders");
+    // Reminders live at users/{uid}/reminders/{id}, so a collectionGroup
+    // query is required to find them across all users.
+    const remindersGroup = db.collectionGroup("reminders");
     const notificationsRef = db.collection("notifications");
 
-    const snapshot = await remindersRef
+    const snapshot = await remindersGroup
       .where("scheduled_time", "<=", now)
       .where("is_active", "==", true)
       .get();
@@ -47,11 +49,11 @@ exports.scheduledReminders = functions.pubsub
       const nextDate = getNextReminderDate(scheduled_time, frequency_type);
 
       if (nextDate) {
-        await remindersRef.doc(doc.id).update({
+        await doc.ref.update({
           scheduled_time: admin.firestore.Timestamp.fromDate(nextDate),
         });
       } else {
-        await remindersRef.doc(doc.id).update({
+        await doc.ref.update({
           is_active: false,
         });
       }
@@ -60,12 +62,25 @@ exports.scheduledReminders = functions.pubsub
     return null;
   });
 
+// Interval-based frequencies, for reminders that repeat every N minutes
+// (screen breaks, hydration, posture) rather than at a fixed time of day.
+const INTERVAL_MINUTES_BY_FREQUENCY = {
+  every_30_min: 30,
+  every_60_min: 60,
+  every_90_min: 90,
+};
+
 function getNextReminderDate(scheduledTime, frequencyType) {
   if (!scheduledTime || !frequencyType) {
     return null;
   }
 
   const currentDate = scheduledTime.toDate();
+
+  const intervalMinutes = INTERVAL_MINUTES_BY_FREQUENCY[frequencyType];
+  if (intervalMinutes) {
+    return new Date(currentDate.getTime() + intervalMinutes * 60 * 1000);
+  }
 
   if (frequencyType === "daily") {
     return new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
@@ -125,3 +140,5 @@ async function sendPushNotification(title, body, userRef) {
     console.error("Error sending push notification:", error);
   }
 }
+
+exports.getNextReminderDate = getNextReminderDate;
