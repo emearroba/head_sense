@@ -207,7 +207,7 @@ class _NavBarPageState extends State<NavBarPage> {
                   size: 24.0,
                 ),
                 Text(
-                  'Diary',
+                  'Tasks',
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: currentIndex == 0
