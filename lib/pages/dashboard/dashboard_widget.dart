@@ -719,8 +719,9 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                                   dashboardDashboardRecord!.severeSymptomDays,
                               missingDays:
                                   dashboardDashboardRecord!.missingDays,
-                              painkillerDays: 16,
-                              periodDays: 30,
+                              painkillerDays:
+                                  dashboardDashboardRecord!.painkillerDays,
+                              periodDays: dashboardDashboardRecord!.periodDays,
                               metricLabel:
                                   dashboardDashboardRecord!.metricLabel,
                             ),

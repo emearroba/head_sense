@@ -106,6 +106,11 @@ class DashboardRecord extends FirestoreRecord {
   int get painkillerDays => _painkillerDays ?? 0;
   bool hasPainkillerDays() => _painkillerDays != null;
 
+  // "periodDays" field.
+  int? _periodDays;
+  int get periodDays => _periodDays ?? 0;
+  bool hasPeriodDays() => _periodDays != null;
+
   void _initializeFields() {
     _userRef = snapshotData['userRef'] as DocumentReference?;
     _metricRef = snapshotData['metricRef'] as DocumentReference?;
@@ -128,6 +133,7 @@ class DashboardRecord extends FirestoreRecord {
     _mildSymptomDays = castToType<int>(snapshotData['mildSymptomDays']);
     _severeSymptomDays = castToType<int>(snapshotData['severeSymptomDays']);
     _painkillerDays = castToType<int>(snapshotData['painkillerDays']);
+    _periodDays = castToType<int>(snapshotData['periodDays']);
   }
 
   static CollectionReference get collection =>
