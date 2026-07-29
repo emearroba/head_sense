@@ -425,6 +425,11 @@ async function calculateDashboardForPeriod({
   await writeBatch.commit();
 }
 
+exports.dateKeyFromDate = dateKeyFromDate;
+exports.getCategory = getCategory;
+exports.getBarColor = getBarColor;
+exports.calculateStreaks = calculateStreaks;
+
 exports.updateDashboardMetric = functions.firestore
   .document("diary_entries/{entryId}/responses/{metricKey}")
   .onWrite(async (change, context) => {
