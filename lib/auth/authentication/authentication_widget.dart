@@ -193,7 +193,8 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                               maxWidth: 570.0,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: FlutterFlowTheme.of(context)
+                                  .secondaryBackground,
                               boxShadow: [
                                 BoxShadow(
                                   blurRadius: 4.0,
@@ -206,7 +207,7 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                               ],
                               borderRadius: BorderRadius.circular(12.0),
                               border: Border.all(
-                                color: Color(0xFFF1F4F8),
+                                color: FlutterFlowTheme.of(context).alternate,
                                 width: 2.0,
                               ),
                             ),
@@ -219,8 +220,11 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                     alignment: Alignment(0.0, 0),
                                     child: TabBar(
                                       isScrollable: true,
-                                      labelColor: Color(0xFF101213),
-                                      unselectedLabelColor: Color(0xFF57636C),
+                                      labelColor: FlutterFlowTheme.of(context)
+                                          .primaryText,
+                                      unselectedLabelColor:
+                                          FlutterFlowTheme.of(context)
+                                              .secondaryText,
                                       labelPadding:
                                           EdgeInsetsDirectional.fromSTEB(
                                               32.0, 0.0, 32.0, 0.0),
@@ -234,7 +238,8 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                       .titleMedium
                                                       .fontStyle,
                                             ),
-                                            color: Colors.white,
+                                            color: FlutterFlowTheme.of(context)
+                                                .secondaryBackground,
                                             fontSize: 18.0,
                                             letterSpacing: 0.0,
                                             fontWeight: FontWeight.w500,
@@ -254,7 +259,8 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                       .titleMedium
                                                       .fontStyle,
                                             ),
-                                            color: Colors.white,
+                                            color: FlutterFlowTheme.of(context)
+                                                .secondaryBackground,
                                             fontSize: 18.0,
                                             letterSpacing: 0.0,
                                             fontWeight: FontWeight.w500,
@@ -263,7 +269,8 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                     .titleMedium
                                                     .fontStyle,
                                           ),
-                                      indicatorColor: Color(0xFF4B39EF),
+                                      indicatorColor:
+                                          FlutterFlowTheme.of(context).primary,
                                       indicatorWeight: 3.0,
                                       tabs: [
                                         Tab(
@@ -304,7 +311,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                     width: 230.0,
                                                     height: 40.0,
                                                     decoration: BoxDecoration(
-                                                      color: Colors.white,
+                                                      color: FlutterFlowTheme
+                                                              .of(context)
+                                                          .secondaryBackground,
                                                     ),
                                                   ),
                                                 Text(
@@ -325,7 +334,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                   .fontStyle,
                                                         ),
                                                         color:
-                                                            Color(0xFF101213),
+                                                            FlutterFlowTheme.of(
+                                                                    context)
+                                                                .primaryText,
                                                         fontSize: 24.0,
                                                         letterSpacing: 0.0,
                                                         fontWeight:
@@ -358,8 +369,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                     .labelMedium
                                                                     .fontStyle,
                                                           ),
-                                                          color:
-                                                              Color(0xFF57636C),
+                                                          color: FlutterFlowTheme
+                                                                  .of(context)
+                                                              .secondaryText,
                                                           fontSize: 14.0,
                                                           letterSpacing: 0.0,
                                                           fontWeight:
@@ -406,8 +418,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                         .labelLarge
                                                                         .fontStyle,
                                                                   ),
-                                                                  color: Color(
-                                                                      0xFF57636C),
+                                                                  color: FlutterFlowTheme.of(
+                                                                          context)
+                                                                      .secondaryText,
                                                                   fontSize:
                                                                       16.0,
                                                                   letterSpacing:
@@ -424,8 +437,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFE0E3E7),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .alternate,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -437,8 +451,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFF4B39EF),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .primary,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -450,8 +465,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFFF5963),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .error,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -463,8 +479,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFFF5963),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .error,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -473,38 +490,42 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                       40.0),
                                                         ),
                                                         filled: true,
-                                                        fillColor: Colors.white,
+                                                        fillColor: FlutterFlowTheme
+                                                                .of(context)
+                                                            .secondaryBackground,
                                                         contentPadding:
                                                             EdgeInsets.all(
                                                                 24.0),
                                                       ),
-                                                      style: FlutterFlowTheme
-                                                              .of(context)
-                                                          .bodyLarge
-                                                          .override(
-                                                            font: GoogleFonts
-                                                                .plusJakartaSans(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
-                                                              fontStyle:
-                                                                  FlutterFlowTheme.of(
+                                                      style:
+                                                          FlutterFlowTheme.of(
+                                                                  context)
+                                                              .bodyLarge
+                                                              .override(
+                                                                font: GoogleFonts
+                                                                    .plusJakartaSans(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                  fontStyle: FlutterFlowTheme.of(
                                                                           context)
                                                                       .bodyLarge
                                                                       .fontStyle,
-                                                            ),
-                                                            color: Color(
-                                                                0xFF101213),
-                                                            fontSize: 16.0,
-                                                            letterSpacing: 0.0,
-                                                            fontWeight:
-                                                                FontWeight.w500,
-                                                            fontStyle:
-                                                                FlutterFlowTheme.of(
+                                                                ),
+                                                                color: FlutterFlowTheme.of(
+                                                                        context)
+                                                                    .primaryText,
+                                                                fontSize: 16.0,
+                                                                letterSpacing:
+                                                                    0.0,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                                fontStyle: FlutterFlowTheme.of(
                                                                         context)
                                                                     .bodyLarge
                                                                     .fontStyle,
-                                                          ),
+                                                              ),
                                                       keyboardType:
                                                           TextInputType
                                                               .emailAddress,
@@ -549,8 +570,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                         .labelLarge
                                                                         .fontStyle,
                                                                   ),
-                                                                  color: Color(
-                                                                      0xFF57636C),
+                                                                  color: FlutterFlowTheme.of(
+                                                                          context)
+                                                                      .secondaryText,
                                                                   fontSize:
                                                                       16.0,
                                                                   letterSpacing:
@@ -567,8 +589,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFE0E3E7),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .alternate,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -580,8 +603,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFF4B39EF),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .primary,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -593,8 +617,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFFF5963),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .error,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -606,8 +631,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFFF5963),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .error,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -616,7 +642,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                       40.0),
                                                         ),
                                                         filled: true,
-                                                        fillColor: Colors.white,
+                                                        fillColor: FlutterFlowTheme
+                                                                .of(context)
+                                                            .secondaryBackground,
                                                         contentPadding:
                                                             EdgeInsets.all(
                                                                 24.0),
@@ -636,39 +664,42 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                     .visibility_outlined
                                                                 : Icons
                                                                     .visibility_off_outlined,
-                                                            color: Color(
-                                                                0xFF57636C),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .secondaryText,
                                                             size: 24.0,
                                                           ),
                                                         ),
                                                       ),
-                                                      style: FlutterFlowTheme
-                                                              .of(context)
-                                                          .bodyLarge
-                                                          .override(
-                                                            font: GoogleFonts
-                                                                .plusJakartaSans(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
-                                                              fontStyle:
-                                                                  FlutterFlowTheme.of(
+                                                      style:
+                                                          FlutterFlowTheme.of(
+                                                                  context)
+                                                              .bodyLarge
+                                                              .override(
+                                                                font: GoogleFonts
+                                                                    .plusJakartaSans(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                  fontStyle: FlutterFlowTheme.of(
                                                                           context)
                                                                       .bodyLarge
                                                                       .fontStyle,
-                                                            ),
-                                                            color: Color(
-                                                                0xFF101213),
-                                                            fontSize: 16.0,
-                                                            letterSpacing: 0.0,
-                                                            fontWeight:
-                                                                FontWeight.w500,
-                                                            fontStyle:
-                                                                FlutterFlowTheme.of(
+                                                                ),
+                                                                color: FlutterFlowTheme.of(
+                                                                        context)
+                                                                    .primaryText,
+                                                                fontSize: 16.0,
+                                                                letterSpacing:
+                                                                    0.0,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                                fontStyle: FlutterFlowTheme.of(
                                                                         context)
                                                                     .bodyLarge
                                                                     .fontStyle,
-                                                          ),
+                                                              ),
                                                       validator: _model
                                                           .passwordCreateTextControllerValidator
                                                           .asValidator(context),
@@ -758,7 +789,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                     0.0,
                                                                     0.0),
                                                         color:
-                                                            Color(0xFF4B39EF),
+                                                            FlutterFlowTheme.of(
+                                                                    context)
+                                                                .primary,
                                                         textStyle:
                                                             FlutterFlowTheme.of(
                                                                     context)
@@ -835,8 +868,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                       .labelMedium
                                                                       .fontStyle,
                                                                 ),
-                                                                color: Color(
-                                                                    0xFF57636C),
+                                                                color: FlutterFlowTheme.of(
+                                                                        context)
+                                                                    .secondaryText,
                                                                 fontSize: 14.0,
                                                                 letterSpacing:
                                                                     0.0,
@@ -1093,7 +1127,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                     width: 230.0,
                                                     height: 40.0,
                                                     decoration: BoxDecoration(
-                                                      color: Colors.white,
+                                                      color: FlutterFlowTheme
+                                                              .of(context)
+                                                          .secondaryBackground,
                                                     ),
                                                   ),
                                                 Text(
@@ -1114,7 +1150,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                   .fontStyle,
                                                         ),
                                                         color:
-                                                            Color(0xFF101213),
+                                                            FlutterFlowTheme.of(
+                                                                    context)
+                                                                .primaryText,
                                                         fontSize: 24.0,
                                                         letterSpacing: 0.0,
                                                         fontWeight:
@@ -1147,8 +1185,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                     .labelMedium
                                                                     .fontStyle,
                                                           ),
-                                                          color:
-                                                              Color(0xFF57636C),
+                                                          color: FlutterFlowTheme
+                                                                  .of(context)
+                                                              .secondaryText,
                                                           fontSize: 14.0,
                                                           letterSpacing: 0.0,
                                                           fontWeight:
@@ -1195,8 +1234,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                         .labelLarge
                                                                         .fontStyle,
                                                                   ),
-                                                                  color: Color(
-                                                                      0xFF57636C),
+                                                                  color: FlutterFlowTheme.of(
+                                                                          context)
+                                                                      .secondaryText,
                                                                   fontSize:
                                                                       16.0,
                                                                   letterSpacing:
@@ -1213,8 +1253,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFF1F4F8),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .alternate,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -1226,8 +1267,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFF4B39EF),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .primary,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -1239,8 +1281,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFE0E3E7),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .alternate,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -1252,8 +1295,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFE0E3E7),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .alternate,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -1262,7 +1306,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                       40.0),
                                                         ),
                                                         filled: true,
-                                                        fillColor: Colors.white,
+                                                        fillColor: FlutterFlowTheme
+                                                                .of(context)
+                                                            .secondaryBackground,
                                                         contentPadding:
                                                             EdgeInsetsDirectional
                                                                 .fromSTEB(
@@ -1271,33 +1317,35 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                     0.0,
                                                                     24.0),
                                                       ),
-                                                      style: FlutterFlowTheme
-                                                              .of(context)
-                                                          .bodyLarge
-                                                          .override(
-                                                            font: GoogleFonts
-                                                                .plusJakartaSans(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
-                                                              fontStyle:
-                                                                  FlutterFlowTheme.of(
+                                                      style:
+                                                          FlutterFlowTheme.of(
+                                                                  context)
+                                                              .bodyLarge
+                                                              .override(
+                                                                font: GoogleFonts
+                                                                    .plusJakartaSans(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                  fontStyle: FlutterFlowTheme.of(
                                                                           context)
                                                                       .bodyLarge
                                                                       .fontStyle,
-                                                            ),
-                                                            color: Color(
-                                                                0xFF101213),
-                                                            fontSize: 16.0,
-                                                            letterSpacing: 0.0,
-                                                            fontWeight:
-                                                                FontWeight.w500,
-                                                            fontStyle:
-                                                                FlutterFlowTheme.of(
+                                                                ),
+                                                                color: FlutterFlowTheme.of(
+                                                                        context)
+                                                                    .primaryText,
+                                                                fontSize: 16.0,
+                                                                letterSpacing:
+                                                                    0.0,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                                fontStyle: FlutterFlowTheme.of(
                                                                         context)
                                                                     .bodyLarge
                                                                     .fontStyle,
-                                                          ),
+                                                              ),
                                                       keyboardType:
                                                           TextInputType
                                                               .emailAddress,
@@ -1342,8 +1390,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                         .labelLarge
                                                                         .fontStyle,
                                                                   ),
-                                                                  color: Color(
-                                                                      0xFF57636C),
+                                                                  color: FlutterFlowTheme.of(
+                                                                          context)
+                                                                      .secondaryText,
                                                                   fontSize:
                                                                       16.0,
                                                                   letterSpacing:
@@ -1360,8 +1409,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFE0E3E7),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .alternate,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -1373,8 +1423,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFF4B39EF),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .primary,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -1386,8 +1437,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFFF5963),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .error,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -1399,8 +1451,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                             OutlineInputBorder(
                                                           borderSide:
                                                               BorderSide(
-                                                            color: Color(
-                                                                0xFFFF5963),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .error,
                                                             width: 2.0,
                                                           ),
                                                           borderRadius:
@@ -1409,7 +1462,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                       40.0),
                                                         ),
                                                         filled: true,
-                                                        fillColor: Colors.white,
+                                                        fillColor: FlutterFlowTheme
+                                                                .of(context)
+                                                            .secondaryBackground,
                                                         contentPadding:
                                                             EdgeInsetsDirectional
                                                                 .fromSTEB(
@@ -1433,39 +1488,42 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                     .visibility_outlined
                                                                 : Icons
                                                                     .visibility_off_outlined,
-                                                            color: Color(
-                                                                0xFF57636C),
+                                                            color: FlutterFlowTheme
+                                                                    .of(context)
+                                                                .secondaryText,
                                                             size: 24.0,
                                                           ),
                                                         ),
                                                       ),
-                                                      style: FlutterFlowTheme
-                                                              .of(context)
-                                                          .bodyLarge
-                                                          .override(
-                                                            font: GoogleFonts
-                                                                .plusJakartaSans(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
-                                                              fontStyle:
-                                                                  FlutterFlowTheme.of(
+                                                      style:
+                                                          FlutterFlowTheme.of(
+                                                                  context)
+                                                              .bodyLarge
+                                                              .override(
+                                                                font: GoogleFonts
+                                                                    .plusJakartaSans(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                  fontStyle: FlutterFlowTheme.of(
                                                                           context)
                                                                       .bodyLarge
                                                                       .fontStyle,
-                                                            ),
-                                                            color: Color(
-                                                                0xFF101213),
-                                                            fontSize: 16.0,
-                                                            letterSpacing: 0.0,
-                                                            fontWeight:
-                                                                FontWeight.w500,
-                                                            fontStyle:
-                                                                FlutterFlowTheme.of(
+                                                                ),
+                                                                color: FlutterFlowTheme.of(
+                                                                        context)
+                                                                    .primaryText,
+                                                                fontSize: 16.0,
+                                                                letterSpacing:
+                                                                    0.0,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                                fontStyle: FlutterFlowTheme.of(
                                                                         context)
                                                                     .bodyLarge
                                                                     .fontStyle,
-                                                          ),
+                                                              ),
                                                       validator: _model
                                                           .passwordTextControllerValidator
                                                           .asValidator(context),
@@ -1525,7 +1583,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                     0.0,
                                                                     0.0),
                                                         color:
-                                                            Color(0xFF4B39EF),
+                                                            FlutterFlowTheme.of(
+                                                                    context)
+                                                                .primary,
                                                         textStyle:
                                                             FlutterFlowTheme.of(
                                                                     context)
@@ -1581,33 +1641,35 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                       'Or sign in with',
                                                       textAlign:
                                                           TextAlign.center,
-                                                      style: FlutterFlowTheme
-                                                              .of(context)
-                                                          .labelMedium
-                                                          .override(
-                                                            font: GoogleFonts
-                                                                .plusJakartaSans(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w500,
-                                                              fontStyle:
-                                                                  FlutterFlowTheme.of(
+                                                      style:
+                                                          FlutterFlowTheme.of(
+                                                                  context)
+                                                              .labelMedium
+                                                              .override(
+                                                                font: GoogleFonts
+                                                                    .plusJakartaSans(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                  fontStyle: FlutterFlowTheme.of(
                                                                           context)
                                                                       .labelMedium
                                                                       .fontStyle,
-                                                            ),
-                                                            color: Color(
-                                                                0xFF57636C),
-                                                            fontSize: 14.0,
-                                                            letterSpacing: 0.0,
-                                                            fontWeight:
-                                                                FontWeight.w500,
-                                                            fontStyle:
-                                                                FlutterFlowTheme.of(
+                                                                ),
+                                                                color: FlutterFlowTheme.of(
+                                                                        context)
+                                                                    .secondaryText,
+                                                                fontSize: 14.0,
+                                                                letterSpacing:
+                                                                    0.0,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                                fontStyle: FlutterFlowTheme.of(
                                                                         context)
                                                                     .labelMedium
                                                                     .fontStyle,
-                                                          ),
+                                                              ),
                                                     ),
                                                   ),
                                                 ),
@@ -1869,7 +1931,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                     0.0,
                                                                     0.0,
                                                                     0.0),
-                                                        color: Colors.white,
+                                                        color: FlutterFlowTheme
+                                                                .of(context)
+                                                            .secondaryBackground,
                                                         textStyle:
                                                             FlutterFlowTheme.of(
                                                                     context)
@@ -1885,8 +1949,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                         .bodyMedium
                                                                         .fontStyle,
                                                                   ),
-                                                                  color: Color(
-                                                                      0xFF101213),
+                                                                  color: FlutterFlowTheme.of(
+                                                                          context)
+                                                                      .primaryText,
                                                                   fontSize:
                                                                       14.0,
                                                                   letterSpacing:
@@ -1901,14 +1966,18 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                                                                 ),
                                                         elevation: 0.0,
                                                         borderSide: BorderSide(
-                                                          color: Colors.white,
+                                                          color: FlutterFlowTheme
+                                                                  .of(context)
+                                                              .secondaryBackground,
                                                           width: 2.0,
                                                         ),
                                                         borderRadius:
                                                             BorderRadius
                                                                 .circular(40.0),
                                                         hoverColor:
-                                                            Color(0xFFF1F4F8),
+                                                            FlutterFlowTheme.of(
+                                                                    context)
+                                                                .alternate,
                                                       ),
                                                     ),
                                                   ),
