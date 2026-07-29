@@ -1,12 +1,12 @@
+import '/auth/firebase_auth/auth_util.dart';
+import '/backend/backend.dart';
 import '/components/reminder_items_widget.dart';
+import '/custom_code/widgets/index.dart';
 import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 import 'reminders_list_model.dart';
 export 'reminders_list_model.dart';
 
@@ -82,7 +82,18 @@ class _RemindersListWidgetState extends State<RemindersListWidget> {
                   size: 24.0,
                 ),
                 onPressed: () {
-                  showSnackbar(context, 'Coming soon');
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: FlutterFlowTheme.of(context)
+                        .secondaryBackground,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(16.0),
+                      ),
+                    ),
+                    builder: (context) => AddReminderSheetWidget(),
+                  );
                 },
               ),
             ),
@@ -113,20 +124,70 @@ class _RemindersListWidgetState extends State<RemindersListWidget> {
                 thickness: 1.0,
                 color: FlutterFlowTheme.of(context).alternate,
               ),
-              ListView(
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                scrollDirection: Axis.vertical,
-                children: [
-                  Align(
-                    alignment: AlignmentDirectional(0.0, 0.0),
-                    child: wrapWithModel(
-                      model: _model.reminderItemsModel,
-                      updateCallback: () => safeSetState(() {}),
-                      child: ReminderItemsWidget(),
+              Expanded(
+                child: StreamBuilder<List<RemindersRecord>>(
+                  stream: queryRemindersRecord(
+                    queryBuilder: (remindersRecord) => remindersRecord.where(
+                      'user_ref',
+                      isEqualTo: currentUserReference,
                     ),
                   ),
-                ],
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return Center(
+                        child: SizedBox(
+                          width: 50.0,
+                          height: 50.0,
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              FlutterFlowTheme.of(context).primary,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    final remindersList = snapshot.data!;
+                    if (remindersList.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: Text(
+                            'No reminders yet. Tap the bell above to add one.',
+                            textAlign: TextAlign.center,
+                            style: FlutterFlowTheme.of(context)
+                                .bodyMedium
+                                .override(
+                                  font: GoogleFonts.inter(),
+                                  color: FlutterFlowTheme.of(context)
+                                      .secondaryText,
+                                ),
+                          ),
+                        ),
+                      );
+                    }
+                    return ListView.builder(
+                      padding: EdgeInsets.zero,
+                      scrollDirection: Axis.vertical,
+                      itemCount: remindersList.length,
+                      itemBuilder: (context, index) {
+                        final reminderItem = remindersList[index];
+                        return wrapWithModel(
+                          model: _model.reminderItemsModels.getModel(
+                            reminderItem.reference.id,
+                            index,
+                          ),
+                          updateCallback: () => safeSetState(() {}),
+                          child: ReminderItemsWidget(
+                            key: Key(
+                              'reminderItem_${reminderItem.reference.id}',
+                            ),
+                            reminderRecord: reminderItem,
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),

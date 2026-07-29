@@ -1,15 +1,18 @@
+import '/backend/schema/reminders_record.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 import 'reminder_items_model.dart';
 export 'reminder_items_model.dart';
 
 class ReminderItemsWidget extends StatefulWidget {
-  const ReminderItemsWidget({super.key});
+  const ReminderItemsWidget({
+    super.key,
+    required this.reminderRecord,
+  });
+
+  final RemindersRecord reminderRecord;
 
   @override
   State<ReminderItemsWidget> createState() => _ReminderItemsWidgetState();
@@ -17,6 +20,7 @@ class ReminderItemsWidget extends StatefulWidget {
 
 class _ReminderItemsWidgetState extends State<ReminderItemsWidget> {
   late ReminderItemsModel _model;
+  bool _isUpdating = false;
 
   @override
   void setState(VoidCallback callback) {
@@ -28,9 +32,6 @@ class _ReminderItemsWidgetState extends State<ReminderItemsWidget> {
   void initState() {
     super.initState();
     _model = createModel(context, () => ReminderItemsModel());
-
-    _model.switchValue = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
   }
 
   @override
@@ -40,8 +41,39 @@ class _ReminderItemsWidgetState extends State<ReminderItemsWidget> {
     super.dispose();
   }
 
+  IconData get _icon {
+    switch (widget.reminderRecord.type) {
+      case 'rest_eyes':
+        return Icons.visibility_outlined;
+      case 'drink_water':
+        return Icons.water_drop_outlined;
+      case 'stand_up':
+        return Icons.accessibility_new_rounded;
+      default:
+        return Icons.notifications_active_outlined;
+    }
+  }
+
+  String get _frequencyLabel {
+    switch (widget.reminderRecord.frequencyType) {
+      case 'every_30_min':
+        return 'Every 30 min';
+      case 'every_60_min':
+        return 'Every hour';
+      case 'every_90_min':
+        return 'Every 90 min';
+      case 'daily':
+        return 'Daily';
+      case 'weekly':
+        return 'Weekly';
+      default:
+        return 'Repeats';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final reminder = widget.reminderRecord;
     return Padding(
       padding: EdgeInsets.all(16.0),
       child: Container(
@@ -60,132 +92,119 @@ class _ReminderItemsWidgetState extends State<ReminderItemsWidget> {
           ],
           borderRadius: BorderRadius.circular(16.0),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Align(
-                    alignment: AlignmentDirectional(-1.0, 0.0),
-                    child: Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.max,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.max,
-                            children: [
-                              Container(
-                                width: 40.0,
-                                height: 40.0,
-                                decoration: BoxDecoration(
-                                  color: Colors.green,
-                                  borderRadius: BorderRadius.circular(10.0),
-                                ),
-                                child: Align(
-                                  alignment: AlignmentDirectional(0.0, 0.0),
-                                  child: Icon(
-                                    Icons.repeat_rounded,
-                                    color: Colors.white,
-                                    size: 20.0,
-                                  ),
-                                ),
-                              ),
-                              Column(
-                                mainAxisSize: MainAxisSize.max,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Reminder1',
-                                    style: FlutterFlowTheme.of(context)
-                                        .titleMedium
-                                        .override(
-                                          font: GoogleFonts.interTight(
-                                            fontWeight: FontWeight.w600,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .titleMedium
-                                                    .fontStyle,
-                                          ),
-                                          letterSpacing: 0.0,
-                                          fontWeight: FontWeight.w600,
-                                          fontStyle:
-                                              FlutterFlowTheme.of(context)
-                                                  .titleMedium
-                                                  .fontStyle,
-                                        ),
-                                  ),
-                                  Text(
-                                    'Repeats on a schedule',
-                                    style: FlutterFlowTheme.of(context)
-                                        .labelSmall
-                                        .override(
-                                          font: GoogleFonts.inter(
-                                            fontWeight:
-                                                FlutterFlowTheme.of(context)
-                                                    .labelSmall
-                                                    .fontWeight,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .labelSmall
-                                                    .fontStyle,
-                                          ),
-                                          color: FlutterFlowTheme.of(context)
-                                              .secondaryText,
-                                          letterSpacing: 0.0,
-                                          fontWeight:
-                                              FlutterFlowTheme.of(context)
-                                                  .labelSmall
-                                                  .fontWeight,
-                                          fontStyle:
-                                              FlutterFlowTheme.of(context)
-                                                  .labelSmall
-                                                  .fontStyle,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ].divide(SizedBox(width: 8.0)),
-                          ),
-                          Padding(
-                            padding: EdgeInsetsDirectional.fromSTEB(
-                                0.0, 0.0, 20.0, 0.0),
-                            child: Icon(
-                              Icons.edit_outlined,
-                              color: FlutterFlowTheme.of(context).secondaryText,
-                              size: 18.0,
-                            ),
-                          ),
-                          Padding(
-                            padding: EdgeInsets.all(10.0),
-                            child: Switch(
-                              value: _model.switchValue!,
-                              onChanged: (newValue) async {
-                                safeSetState(
-                                    () => _model.switchValue = newValue!);
-                              },
-                              activeColor: FlutterFlowTheme.of(context).primary,
-                            ),
-                          ),
-                        ],
+        child: Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  mainAxisSize: MainAxisSize.max,
+                  children: [
+                    Container(
+                      width: 40.0,
+                      height: 40.0,
+                      decoration: BoxDecoration(
+                        color: FlutterFlowTheme.of(context).primary,
+                        borderRadius: BorderRadius.circular(10.0),
+                      ),
+                      child: Align(
+                        alignment: AlignmentDirectional(0.0, 0.0),
+                        child: Icon(
+                          _icon,
+                          color: Colors.white,
+                          size: 20.0,
+                        ),
                       ),
                     ),
-                  ),
-                  Divider(
-                    height: 1.0,
-                    thickness: 1.0,
-                    color: FlutterFlowTheme.of(context).alternate,
-                  ),
-                ].divide(SizedBox(height: 12.0)),
+                    Expanded(
+                      child: Padding(
+                        padding:
+                            EdgeInsetsDirectional.fromSTEB(8.0, 0.0, 0.0, 0.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              reminder.title.isNotEmpty
+                                  ? reminder.title
+                                  : 'Reminder',
+                              style: FlutterFlowTheme.of(context)
+                                  .titleMedium
+                                  .override(
+                                    font: GoogleFonts.interTight(
+                                      fontWeight: FontWeight.w600,
+                                      fontStyle: FlutterFlowTheme.of(context)
+                                          .titleMedium
+                                          .fontStyle,
+                                    ),
+                                    letterSpacing: 0.0,
+                                    fontWeight: FontWeight.w600,
+                                    fontStyle: FlutterFlowTheme.of(context)
+                                        .titleMedium
+                                        .fontStyle,
+                                  ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              _frequencyLabel,
+                              style: FlutterFlowTheme.of(context)
+                                  .labelSmall
+                                  .override(
+                                    font: GoogleFonts.inter(
+                                      fontWeight: FlutterFlowTheme.of(context)
+                                          .labelSmall
+                                          .fontWeight,
+                                      fontStyle: FlutterFlowTheme.of(context)
+                                          .labelSmall
+                                          .fontStyle,
+                                    ),
+                                    color: FlutterFlowTheme.of(context)
+                                        .secondaryText,
+                                    letterSpacing: 0.0,
+                                    fontWeight: FlutterFlowTheme.of(context)
+                                        .labelSmall
+                                        .fontWeight,
+                                    fontStyle: FlutterFlowTheme.of(context)
+                                        .labelSmall
+                                        .fontStyle,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              Padding(
+                padding: EdgeInsets.all(10.0),
+                child: _isUpdating
+                    ? SizedBox(
+                        width: 24.0,
+                        height: 24.0,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.0,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            FlutterFlowTheme.of(context).primary,
+                          ),
+                        ),
+                      )
+                    : Switch(
+                        value: reminder.isActive,
+                        onChanged: (newValue) async {
+                          safeSetState(() => _isUpdating = true);
+                          await reminder.reference.update(
+                            createRemindersRecordData(isActive: newValue),
+                          );
+                          safeSetState(() => _isUpdating = false);
+                        },
+                        activeThumbColor: FlutterFlowTheme.of(context).primary,
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
