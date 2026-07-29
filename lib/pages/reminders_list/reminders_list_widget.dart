@@ -82,7 +82,7 @@ class _RemindersListWidgetState extends State<RemindersListWidget> {
                   size: 24.0,
                 ),
                 onPressed: () {
-                  print('IconButton pressed ...');
+                  showSnackbar(context, 'Coming soon');
                 },
               ),
             ),
@@ -96,7 +96,7 @@ class _RemindersListWidgetState extends State<RemindersListWidget> {
                 size: 24.0,
               ),
               onPressed: () {
-                print('IconButton pressed ...');
+                context.pop();
               },
             ),
           ],
