@@ -54,9 +54,7 @@ class _ClinicalDonutChartState extends State<ClinicalDonutChart> {
     final int totalHeadacheDays =
         widget.mildDays + widget.moderateDays + widget.severeDays;
     final int totalDays = widget.periodDays > 0 ? widget.periodDays : 30;
-
-    final String displayTitle =
-        widget.metricLabel.isNotEmpty ? widget.metricLabel : 'Symptom Overview';
+    final int trackedDays = widget.crystalDays + totalHeadacheDays;
 
     return Container(
       width: widget.width ?? double.infinity,
@@ -70,19 +68,8 @@ class _ClinicalDonutChartState extends State<ClinicalDonutChart> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Expanded(
-                child: Text(
-                  displayTitle,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
               if (totalHeadacheDays >= (totalDays / 2))
                 Container(
                   padding:
@@ -165,23 +152,37 @@ class _ClinicalDonutChartState extends State<ClinicalDonutChart> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildLegendItem(
-                          'Severe (7-10)', widget.severeDays, severeColor),
+                          'Severe (7-10)', widget.severeDays, severeColor,
+                          total: trackedDays),
                       _buildLegendItem(
-                          'Moderate (4-6)', widget.moderateDays, moderateColor),
+                          'Moderate (4-6)', widget.moderateDays, moderateColor,
+                          total: trackedDays),
                       _buildLegendItem(
-                          'Mild (1-3)', widget.mildDays, mildColor),
+                          'Mild (1-3)', widget.mildDays, mildColor,
+                          total: trackedDays),
                       _buildLegendItem(
-                          'Crystal Clear', widget.crystalDays, crystalColor),
+                          'Crystal Clear', widget.crystalDays, crystalColor,
+                          total: trackedDays),
                       _buildLegendItem(
-                          'Missing Days', widget.missingDays, missingColor),
+                          'Missing Days', widget.missingDays, missingColor,
+                          total: totalDays),
                       const Divider(color: Colors.white24, height: 14),
                       _buildLegendItem('Painkillers Used',
                           widget.painkillerDays, painkillerColor,
-                          isOuter: true),
+                          isOuter: true, total: trackedDays),
                     ],
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Percentages are based on the days you tracked (missing days excluded).',
+            style: TextStyle(
+              color: Colors.white38,
+              fontSize: 10,
+              fontStyle: FontStyle.italic,
             ),
           ),
         ],
@@ -292,8 +293,15 @@ class _ClinicalDonutChartState extends State<ClinicalDonutChart> {
     return sections;
   }
 
+  int _percent(int days, int total) {
+    if (total <= 0) return 0;
+    return ((days / total) * 100).round();
+  }
+
   Widget _buildLegendItem(String label, int value, Color color,
-      {bool isOuter = false}) {
+      {bool isOuter = false, int? total}) {
+    final String trailing =
+        total != null ? '$value d · ${_percent(value, total)}%' : '$value d';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.5),
       child: Row(
@@ -320,7 +328,7 @@ class _ClinicalDonutChartState extends State<ClinicalDonutChart> {
             ),
           ),
           Text(
-            '$value d',
+            trailing,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 11,

@@ -91,6 +91,16 @@ class UsersRecord extends FirestoreRecord {
   bool get reminderActive => _reminderActive ?? false;
   bool hasReminderActive() => _reminderActive != null;
 
+  // "trackedMetricKeys" field.
+  List<String>? _trackedMetricKeys;
+  List<String> get trackedMetricKeys => _trackedMetricKeys ?? const [];
+  bool hasTrackedMetricKeys() => _trackedMetricKeys != null;
+
+  // "milestoneCoinsClaimed" field.
+  int? _milestoneCoinsClaimed;
+  int get milestoneCoinsClaimed => _milestoneCoinsClaimed ?? 0;
+  bool hasMilestoneCoinsClaimed() => _milestoneCoinsClaimed != null;
+
   void _initializeFields() {
     _uid = snapshotData['uid'] as String?;
     _email = snapshotData['email'] as String?;
@@ -108,6 +118,9 @@ class UsersRecord extends FirestoreRecord {
         snapshotData['lastDiaryCompletedDateKey'] as String?;
     _reminderTime = snapshotData['reminder_time'] as DateTime?;
     _reminderActive = snapshotData['reminder_active'] as bool?;
+    _trackedMetricKeys = getDataList(snapshotData['trackedMetricKeys']);
+    _milestoneCoinsClaimed =
+        castToType<int>(snapshotData['milestoneCoinsClaimed']);
   }
 
   static CollectionReference get collection =>
@@ -188,6 +201,7 @@ class UsersRecordDocumentEquality implements Equality<UsersRecord> {
 
   @override
   bool equals(UsersRecord? e1, UsersRecord? e2) {
+    const listEquality = ListEquality();
     return e1?.uid == e2?.uid &&
         e1?.email == e2?.email &&
         e1?.plan == e2?.plan &&
@@ -202,7 +216,9 @@ class UsersRecordDocumentEquality implements Equality<UsersRecord> {
         e1?.currentStreak == e2?.currentStreak &&
         e1?.lastDiaryCompletedDateKey == e2?.lastDiaryCompletedDateKey &&
         e1?.reminderTime == e2?.reminderTime &&
-        e1?.reminderActive == e2?.reminderActive;
+        e1?.reminderActive == e2?.reminderActive &&
+        listEquality.equals(e1?.trackedMetricKeys, e2?.trackedMetricKeys) &&
+        e1?.milestoneCoinsClaimed == e2?.milestoneCoinsClaimed;
   }
 
   @override
@@ -221,7 +237,9 @@ class UsersRecordDocumentEquality implements Equality<UsersRecord> {
         e?.currentStreak,
         e?.lastDiaryCompletedDateKey,
         e?.reminderTime,
-        e?.reminderActive
+        e?.reminderActive,
+        e?.trackedMetricKeys,
+        e?.milestoneCoinsClaimed
       ]);
 
   @override

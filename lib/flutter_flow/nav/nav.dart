@@ -118,9 +118,7 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
         FFRoute(
           name: DiaryTodoListWidget.routeName,
           path: DiaryTodoListWidget.routePath,
-          builder: (context, params) => params.isEmpty
-              ? NavBarPage(initialPage: 'DiaryTodoList')
-              : DiaryTodoListWidget(),
+          builder: (context, params) => DiaryTodoListWidget(),
         ),
         FFRoute(
           name: WeatherWidget.routeName,
@@ -145,9 +143,29 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
         FFRoute(
           name: RemindersWidget.routeName,
           path: RemindersWidget.routePath,
+          builder: (context, params) => RemindersWidget(),
+        ),
+        FFRoute(
+          name: TrackVariablesWidget.routeName,
+          path: TrackVariablesWidget.routePath,
+          builder: (context, params) => TrackVariablesWidget(),
+        ),
+        FFRoute(
+          name: SettingsWidget.routeName,
+          path: SettingsWidget.routePath,
+          builder: (context, params) => SettingsWidget(),
+        ),
+        FFRoute(
+          name: OnboardingGoalsWidget.routeName,
+          path: OnboardingGoalsWidget.routePath,
+          builder: (context, params) => OnboardingGoalsWidget(),
+        ),
+        FFRoute(
+          name: ResultsWidget.routeName,
+          path: ResultsWidget.routePath,
           builder: (context, params) => params.isEmpty
-              ? NavBarPage(initialPage: 'Reminders')
-              : RemindersWidget(),
+              ? NavBarPage(initialPage: 'Results')
+              : ResultsWidget(),
         ),
         FFRoute(
           name: RemindersListWidget.routeName,

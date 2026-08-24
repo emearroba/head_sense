@@ -7,6 +7,12 @@ export '/auth/authentication/authentication_widget.dart'
 export '/auth/profile/profile_widget.dart' show ProfileWidget;
 export '/pages/diary_todo_list/diary_todo_list_widget.dart'
     show DiaryTodoListWidget;
+export '/pages/track_variables/track_variables_widget.dart'
+    show TrackVariablesWidget;
+export '/pages/settings/settings_widget.dart' show SettingsWidget;
+export '/pages/results/results_widget.dart' show ResultsWidget;
+export '/pages/onboarding_goals/onboarding_goals_widget.dart'
+    show OnboardingGoalsWidget;
 export '/pages/weather/weather_widget.dart' show WeatherWidget;
 export '/pages/weather_results/weather_results_widget.dart'
     show WeatherResultsWidget;

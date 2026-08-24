@@ -18,11 +18,13 @@ class SymptomBarChart extends StatelessWidget {
     required this.documents,
     this.width,
     this.height,
+    this.yAxisLabel,
   });
 
   final List<DailyValuesRecord> documents;
   final double? width;
   final double? height;
+  final String? yAxisLabel;
 
   // Color para Crystal Clear (0/10)
   static const String crystalColorHex = '#8ECBE8';
@@ -199,6 +201,14 @@ class SymptomBarChart extends StatelessWidget {
             topTitles:
                 const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             leftTitles: AxisTitles(
+              axisNameSize: 18,
+              axisNameWidget: Text(
+                yAxisLabel ?? 'Intensity (0-10)',
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 10,
+                ),
+              ),
               sideTitles: SideTitles(
                 showTitles: true,
                 interval: 2,

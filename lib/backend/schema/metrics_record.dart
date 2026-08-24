@@ -76,6 +76,21 @@ class MetricsRecord extends FirestoreRecord {
   String get maxLabel => _maxLabel ?? '';
   bool hasMaxLabel() => _maxLabel != null;
 
+  // "isPredictor" field.
+  bool? _isPredictor;
+  bool get isPredictor => _isPredictor ?? false;
+  bool hasIsPredictor() => _isPredictor != null;
+
+  // "step" field.
+  double? _step;
+  double get step => _step ?? 1.0;
+  bool hasStep() => _step != null;
+
+  // "unit" field.
+  String? _unit;
+  String get unit => _unit ?? '';
+  bool hasUnit() => _unit != null;
+
   void _initializeFields() {
     _metricKey = snapshotData['metricKey'] as String?;
     _metricLabel = snapshotData['metricLabel'] as String?;
@@ -89,6 +104,9 @@ class MetricsRecord extends FirestoreRecord {
     _description = snapshotData['description'] as String?;
     _minLabel = snapshotData['minLabel'] as String?;
     _maxLabel = snapshotData['maxLabel'] as String?;
+    _isPredictor = snapshotData['isPredictor'] as bool?;
+    _step = castToType<double>(snapshotData['step']);
+    _unit = snapshotData['unit'] as String?;
   }
 
   static CollectionReference get collection =>
@@ -138,6 +156,9 @@ Map<String, dynamic> createMetricsRecordData({
   String? description,
   String? minLabel,
   String? maxLabel,
+  bool? isPredictor,
+  double? step,
+  String? unit,
 }) {
   final firestoreData = mapToFirestore(
     <String, dynamic>{
@@ -153,6 +174,9 @@ Map<String, dynamic> createMetricsRecordData({
       'description': description,
       'minLabel': minLabel,
       'maxLabel': maxLabel,
+      'isPredictor': isPredictor,
+      'step': step,
+      'unit': unit,
     }.withoutNulls,
   );
 
@@ -175,7 +199,10 @@ class MetricsRecordDocumentEquality implements Equality<MetricsRecord> {
         e1?.isFree == e2?.isFree &&
         e1?.description == e2?.description &&
         e1?.minLabel == e2?.minLabel &&
-        e1?.maxLabel == e2?.maxLabel;
+        e1?.maxLabel == e2?.maxLabel &&
+        e1?.isPredictor == e2?.isPredictor &&
+        e1?.step == e2?.step &&
+        e1?.unit == e2?.unit;
   }
 
   @override
@@ -191,7 +218,10 @@ class MetricsRecordDocumentEquality implements Equality<MetricsRecord> {
         e?.isFree,
         e?.description,
         e?.minLabel,
-        e?.maxLabel
+        e?.maxLabel,
+        e?.isPredictor,
+        e?.step,
+        e?.unit
       ]);
 
   @override

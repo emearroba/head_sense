@@ -73,7 +73,6 @@ class _RemindersWidgetState extends State<RemindersWidget> {
         backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
         appBar: AppBar(
           backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-          automaticallyImplyLeading: false,
           title: Text(
             'Reminders',
             style: FlutterFlowTheme.of(context).headlineSmall.override(

@@ -456,6 +456,21 @@ exports.updateDashboardMetric = functions.firestore
         ? metricSnap.data().metricLabel
         : metricKey;
 
+    // The 0-10 severity dashboard (donut/calendar/streaks) only makes sense
+    // for scale-type outcomes. Boolean/numeric predictors (on_period,
+    // hours_slept, ...) still have their raw response stored above; they
+    // just don't get bucketed into crystal/mild/moderate/severe here.
+    // Metrics without an answerType (e.g. the original headache metric)
+    // are treated as scale for backward compatibility.
+    const answerType =
+      metricSnap.exists && metricSnap.data().answerType
+        ? metricSnap.data().answerType
+        : "scale";
+
+    if (answerType !== "scale") {
+      return null;
+    }
+
     const firstEntrySnap = await db
       .collection("diary_entries")
       .where("userRef", "==", userRef)
