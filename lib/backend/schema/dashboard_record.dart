@@ -111,6 +111,66 @@ class DashboardRecord extends FirestoreRecord {
   int get periodDays => _periodDays ?? 0;
   bool hasPeriodDays() => _periodDays != null;
 
+  // "completionRate" field.
+  double? _completionRate;
+  double get completionRate => _completionRate ?? 0.0;
+  bool hasCompletionRate() => _completionRate != null;
+
+  // "symptomRate" field.
+  double? _symptomRate;
+  double get symptomRate => _symptomRate ?? 0.0;
+  bool hasSymptomRate() => _symptomRate != null;
+
+  // "meanIntensitySymptomDays" field.
+  double? _meanIntensitySymptomDays;
+  double get meanIntensitySymptomDays => _meanIntensitySymptomDays ?? 0.0;
+  bool hasMeanIntensitySymptomDays() => _meanIntensitySymptomDays != null;
+
+  // "meanIntensityTrackedDays" field.
+  double? _meanIntensityTrackedDays;
+  double get meanIntensityTrackedDays => _meanIntensityTrackedDays ?? 0.0;
+  bool hasMeanIntensityTrackedDays() => _meanIntensityTrackedDays != null;
+
+  // "spikeCount" field.
+  int? _spikeCount;
+  int get spikeCount => _spikeCount ?? 0;
+  bool hasSpikeCount() => _spikeCount != null;
+
+  // "currentSevereStreak" field.
+  int? _currentSevereStreak;
+  int get currentSevereStreak => _currentSevereStreak ?? 0;
+  bool hasCurrentSevereStreak() => _currentSevereStreak != null;
+
+  // "longestSevereStreak" field.
+  int? _longestSevereStreak;
+  int get longestSevereStreak => _longestSevereStreak ?? 0;
+  bool hasLongestSevereStreak() => _longestSevereStreak != null;
+
+  // "currentCrystalStreak" field.
+  int? _currentCrystalStreak;
+  int get currentCrystalStreak => _currentCrystalStreak ?? 0;
+  bool hasCurrentCrystalStreak() => _currentCrystalStreak != null;
+
+  // "longestCrystalStreak" field.
+  int? _longestCrystalStreak;
+  int get longestCrystalStreak => _longestCrystalStreak ?? 0;
+  bool hasLongestCrystalStreak() => _longestCrystalStreak != null;
+
+  // "currentMissingStreak" field.
+  int? _currentMissingStreak;
+  int get currentMissingStreak => _currentMissingStreak ?? 0;
+  bool hasCurrentMissingStreak() => _currentMissingStreak != null;
+
+  // "periodHasEnoughData" field.
+  bool? _periodHasEnoughData;
+  bool get periodHasEnoughData => _periodHasEnoughData ?? false;
+  bool hasPeriodHasEnoughData() => _periodHasEnoughData != null;
+
+  // "analysisEligible" field.
+  bool? _analysisEligible;
+  bool get analysisEligible => _analysisEligible ?? false;
+  bool hasAnalysisEligible() => _analysisEligible != null;
+
   void _initializeFields() {
     _userRef = snapshotData['userRef'] as DocumentReference?;
     _metricRef = snapshotData['metricRef'] as DocumentReference?;
@@ -134,6 +194,23 @@ class DashboardRecord extends FirestoreRecord {
     _severeSymptomDays = castToType<int>(snapshotData['severeSymptomDays']);
     _painkillerDays = castToType<int>(snapshotData['painkillerDays']);
     _periodDays = castToType<int>(snapshotData['periodDays']);
+    _completionRate = castToType<double>(snapshotData['completionRate']);
+    _symptomRate = castToType<double>(snapshotData['symptomRate']);
+    _meanIntensitySymptomDays =
+        castToType<double>(snapshotData['meanIntensitySymptomDays']);
+    _meanIntensityTrackedDays =
+        castToType<double>(snapshotData['meanIntensityTrackedDays']);
+    _spikeCount = castToType<int>(snapshotData['spikeCount']);
+    _currentSevereStreak = castToType<int>(snapshotData['currentSevereStreak']);
+    _longestSevereStreak = castToType<int>(snapshotData['longestSevereStreak']);
+    _currentCrystalStreak =
+        castToType<int>(snapshotData['currentCrystalStreak']);
+    _longestCrystalStreak =
+        castToType<int>(snapshotData['longestCrystalStreak']);
+    _currentMissingStreak =
+        castToType<int>(snapshotData['currentMissingStreak']);
+    _periodHasEnoughData = snapshotData['periodHasEnoughData'] as bool?;
+    _analysisEligible = snapshotData['analysisEligible'] as bool?;
   }
 
   static CollectionReference get collection =>

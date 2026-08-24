@@ -8,4 +8,5 @@ export 'severity_legend_list.dart' show SeverityLegendList;
 export 'symptom_bar_chart.dart' show SymptomBarChart;
 export 'clinical_donut_chart.dart' show ClinicalDonutChart;
 export 'pattern_lock_card.dart' show PatternLockCard;
+export 'pattern_insights_panel.dart' show PatternInsightsPanel;
 export 'add_reminder_sheet_widget.dart' show AddReminderSheetWidget;

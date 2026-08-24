@@ -1,25 +1,20 @@
 // Automatic FlutterFlow imports
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
-import '/backend/schema/structs/index.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
-import '/flutter_flow/flutter_flow_util.dart';
-import '/pages/results/results_widget.dart';
-import 'index.dart'; // Imports other custom widgets
 import '/flutter_flow/custom_functions.dart' as custom_functions;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 // Begin custom widget code
 // DO NOT REMOVE OR MODIFY THE CODE ABOVE!
 
-// Compact version of the Patterns tab's progress module, surfaced at the top
-// of the Dashboard: the 100-day progress bar, day streak / days tracked /
-// days to insights / coins, and the same "N more days" message.
-// Self-contained (queries diary_entries + the user doc itself).
+// Progress module surfaced at the top of the Patterns tab: the 100-day
+// progress bar, day streak / days tracked / days to insights / coins, and
+// the "N more days" message. Self-contained (queries diary_entries + the
+// user doc itself).
 //
 // Also the sole place that awards milestone coins (every 30 logged days,
 // matching the period-selector groups) and pops the milestone celebration
-// modal, so award logic can't double-fire between here and the Patterns tab.
+// modal.
 class TrackingProgressCard extends StatefulWidget {
   const TrackingProgressCard({super.key});
 
@@ -152,12 +147,9 @@ class _TrackingProgressCardState extends State<TrackingProgressCard> {
             ),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              context.pushNamed(ResultsWidget.routeName);
-            },
+            onPressed: () => Navigator.pop(dialogContext),
             child: Text(
-              isSubscribed ? 'View in Patterns' : 'See Patterns',
+              isSubscribed ? 'View patterns' : 'See patterns',
               style: TextStyle(
                 color: FlutterFlowTheme.of(context).primary,
                 fontWeight: FontWeight.w600,

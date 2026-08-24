@@ -290,8 +290,6 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 16.0),
-                          const custom_widgets.TrackingProgressCard(),
                           const SizedBox(height: 20.0),
                           Text(
                             'Select time range',
