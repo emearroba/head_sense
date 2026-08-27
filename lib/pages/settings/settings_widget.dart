@@ -1,3 +1,6 @@
+import '/auth/firebase_auth/auth_util.dart';
+import '/backend/api_requests/api_calls.dart';
+import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/index.dart';
@@ -73,10 +76,407 @@ class _SettingsWidgetState extends State<SettingsWidget> {
               subtitle: 'Configure your daily diary reminders',
               onTap: () => context.pushNamed(RemindersWidget.routeName),
             ),
+            const SizedBox(height: 28),
+            _sectionTitle(context, 'Your Profile'),
+            const SizedBox(height: 12),
+            _profileCard(context),
+            const SizedBox(height: 12),
+            _signOutTile(context),
+            const SizedBox(height: 28),
+            _sectionTitle(context, 'Available Studies'),
+            const SizedBox(height: 12),
+            _availableStudiesCard(context),
           ],
         ),
       ),
     );
+  }
+
+  Widget _sectionTitle(BuildContext context, String title) {
+    return Text(
+      title,
+      style: FlutterFlowTheme.of(context).titleSmall.override(
+            font: GoogleFonts.interTight(fontWeight: FontWeight.w600),
+            color: FlutterFlowTheme.of(context).secondaryText,
+            letterSpacing: 0.5,
+          ),
+    );
+  }
+
+  Widget _profileCard(BuildContext context) {
+    if (currentUserReference == null) return const SizedBox.shrink();
+    return StreamBuilder<UsersRecord>(
+      stream: UsersRecord.getDocument(currentUserReference!),
+      builder: (context, userSnapshot) {
+        if (!userSnapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.0),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final user = userSnapshot.data!;
+        final planLabel = user.plan.isEmpty ? 'Free' : user.plan;
+        final locationLabel =
+            user.locationLabel.isEmpty ? 'Not set' : user.locationLabel;
+
+        return Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color: FlutterFlowTheme.of(context).secondaryBackground,
+            borderRadius: BorderRadius.circular(12.0),
+            border: Border.all(
+              color: FlutterFlowTheme.of(context).alternate,
+              width: 1.0,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _profileRow(context, Icons.workspace_premium_outlined, 'Plan',
+                  planLabel),
+              const SizedBox(height: 12),
+              _profileRow(
+                context,
+                Icons.location_on_outlined,
+                'Location',
+                locationLabel,
+                onTap: () => _editLocation(context, user.locationLabel),
+              ),
+              const SizedBox(height: 12),
+              StreamBuilder<List<StudiesRecord>>(
+                stream: queryStudiesRecord(),
+                builder: (context, studiesSnapshot) {
+                  final joinedNames = (studiesSnapshot.data ?? [])
+                      .where((s) => user.joinedStudyIds.contains(s.reference.id))
+                      .map((s) => s.studyName)
+                      .where((n) => n.isNotEmpty)
+                      .toList();
+                  return _profileRow(
+                    context,
+                    Icons.science_outlined,
+                    'Studies',
+                    joinedNames.isEmpty ? 'None yet' : joinedNames.join(', '),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _profileRow(
+      BuildContext context, IconData icon, String label, String value,
+      {VoidCallback? onTap}) {
+    final row = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: FlutterFlowTheme.of(context).primary, size: 20.0),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: FlutterFlowTheme.of(context).labelSmall.override(
+                      font: GoogleFonts.inter(),
+                      color: FlutterFlowTheme.of(context).secondaryText,
+                    ),
+              ),
+              Text(
+                value,
+                style: FlutterFlowTheme.of(context).bodyMedium.override(
+                      font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                      color: FlutterFlowTheme.of(context).primaryText,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        if (onTap != null)
+          Icon(Icons.edit_outlined,
+              color: FlutterFlowTheme.of(context).secondaryText, size: 18.0),
+      ],
+    );
+    if (onTap == null) return row;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8.0),
+      child: row,
+    );
+  }
+
+  Widget _signOutTile(BuildContext context) {
+    return InkWell(
+      onTap: () => _confirmSignOut(context),
+      borderRadius: BorderRadius.circular(12.0),
+      child: Container(
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: FlutterFlowTheme.of(context).secondaryBackground,
+          borderRadius: BorderRadius.circular(12.0),
+          border: Border.all(
+            color: FlutterFlowTheme.of(context).alternate,
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.logout,
+                color: FlutterFlowTheme.of(context).secondaryText),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'Sign out',
+                style: FlutterFlowTheme.of(context).bodyMedium.override(
+                      font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                      color: FlutterFlowTheme.of(context).primaryText,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                color: FlutterFlowTheme.of(context).secondaryText),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmSignOut(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+        title: Text(
+          'Sign out?',
+          style: FlutterFlowTheme.of(context).titleSmall.override(
+                fontWeight: FontWeight.w600,
+                color: FlutterFlowTheme.of(context).primaryText,
+              ),
+        ),
+        content: Text(
+          'You\'ll need to sign in again to access your account.',
+          style: FlutterFlowTheme.of(context).bodyMedium.override(
+                color: FlutterFlowTheme.of(context).secondaryText,
+              ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('Cancel',
+                style: TextStyle(
+                    color: FlutterFlowTheme.of(context).secondaryText)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text('Sign out',
+                style: TextStyle(
+                    color: FlutterFlowTheme.of(context).error,
+                    fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await authManager.signOut();
+      if (context.mounted) {
+        context.goNamed(AuthenticationWidget.routeName);
+      }
+    }
+  }
+
+  Future<void> _editLocation(BuildContext context, String currentLabel) async {
+    final controller = TextEditingController(text: currentLabel);
+    String? error;
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+          title: Text(
+            'Your location',
+            style: FlutterFlowTheme.of(context).titleSmall.override(
+                  fontWeight: FontWeight.w600,
+                  color: FlutterFlowTheme.of(context).primaryText,
+                ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'e.g. "London"',
+                  errorText: error,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('Cancel',
+                  style: TextStyle(
+                      color: FlutterFlowTheme.of(context).secondaryText)),
+            ),
+            TextButton(
+              onPressed: () async {
+                final city = controller.text.trim();
+                if (city.isEmpty) return;
+                setDialogState(() => error = null);
+                final response = await WeatherrCall.call(city: city);
+                if (!response.succeeded) {
+                  setDialogState(() => error =
+                      "Couldn't find that city. Check the spelling.");
+                  return;
+                }
+                final resolvedCity =
+                    WeatherrCall.cityWeather(response.jsonBody) ?? city;
+                final lat = WeatherrCall.lat(response.jsonBody);
+                final lon = WeatherrCall.lon(response.jsonBody);
+                await currentUserReference!.update({
+                  'locationLabel': resolvedCity,
+                  if (lat != null && lon != null)
+                    'userTimezone': LatLng(lat, lon),
+                });
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext, true);
+                }
+              },
+              child: Text('Save',
+                  style: TextStyle(
+                      color: FlutterFlowTheme.of(context).primary,
+                      fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (saved == true && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location updated')),
+      );
+    }
+  }
+
+  Widget _availableStudiesCard(BuildContext context) {
+    if (currentUserReference == null) return const SizedBox.shrink();
+    return StreamBuilder<UsersRecord>(
+      stream: UsersRecord.getDocument(currentUserReference!),
+      builder: (context, userSnapshot) {
+        if (!userSnapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.0),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final joinedStudyIds = userSnapshot.data!.joinedStudyIds;
+
+        return StreamBuilder<List<StudiesRecord>>(
+          stream: queryStudiesRecord(
+            queryBuilder: (q) => q.where('isActive', isEqualTo: true),
+          ),
+          builder: (context, studiesSnapshot) {
+            if (!studiesSnapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16.0),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final available = studiesSnapshot.data!
+                .where((s) => !joinedStudyIds.contains(s.reference.id))
+                .toList();
+
+            if (available.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  color: FlutterFlowTheme.of(context).secondaryBackground,
+                  borderRadius: BorderRadius.circular(12.0),
+                  border: Border.all(
+                    color: FlutterFlowTheme.of(context).alternate,
+                    width: 1.0,
+                  ),
+                ),
+                child: Text(
+                  'No studies are currently available to join.',
+                  style: FlutterFlowTheme.of(context).bodySmall.override(
+                        font: GoogleFonts.inter(),
+                        color: FlutterFlowTheme.of(context).secondaryText,
+                      ),
+                ),
+              );
+            }
+
+            return Column(
+              children: available
+                  .map((study) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: _studyTile(context, study),
+                      ))
+                  .toList(),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _studyTile(BuildContext context, StudiesRecord study) {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: FlutterFlowTheme.of(context).secondaryBackground,
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(
+          color: FlutterFlowTheme.of(context).alternate,
+          width: 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.science_outlined,
+              color: FlutterFlowTheme.of(context).primary),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              study.studyName.isEmpty ? 'Untitled study' : study.studyName,
+              style: FlutterFlowTheme.of(context).bodyMedium.override(
+                    font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                    color: FlutterFlowTheme.of(context).primaryText,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => _joinStudy(context, study),
+            child: const Text('Join'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _joinStudy(BuildContext context, StudiesRecord study) async {
+    if (currentUserReference == null) return;
+    await currentUserReference!.update({
+      'joinedStudyIds': FieldValue.arrayUnion([study.reference.id]),
+      'studyParticipant': true,
+    });
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Joined ${study.studyName}')),
+      );
+    }
   }
 
   Widget _settingsTile(

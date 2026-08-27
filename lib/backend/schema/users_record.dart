@@ -101,6 +101,17 @@ class UsersRecord extends FirestoreRecord {
   int get milestoneCoinsClaimed => _milestoneCoinsClaimed ?? 0;
   bool hasMilestoneCoinsClaimed() => _milestoneCoinsClaimed != null;
 
+  // "locationLabel" field. Human-readable "City, Country", captured once
+  // during onboarding rather than re-fetched on every screen.
+  String? _locationLabel;
+  String get locationLabel => _locationLabel ?? '';
+  bool hasLocationLabel() => _locationLabel != null;
+
+  // "joinedStudyIds" field. Document ids into the `studies` collection.
+  List<String>? _joinedStudyIds;
+  List<String> get joinedStudyIds => _joinedStudyIds ?? const [];
+  bool hasJoinedStudyIds() => _joinedStudyIds != null;
+
   void _initializeFields() {
     _uid = snapshotData['uid'] as String?;
     _email = snapshotData['email'] as String?;
@@ -121,6 +132,8 @@ class UsersRecord extends FirestoreRecord {
     _trackedMetricKeys = getDataList(snapshotData['trackedMetricKeys']);
     _milestoneCoinsClaimed =
         castToType<int>(snapshotData['milestoneCoinsClaimed']);
+    _locationLabel = snapshotData['locationLabel'] as String?;
+    _joinedStudyIds = getDataList(snapshotData['joinedStudyIds']);
   }
 
   static CollectionReference get collection =>

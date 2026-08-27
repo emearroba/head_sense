@@ -9,9 +9,19 @@ import 'package:provider/provider.dart';
 
 class LocationPermissionPageModel
     extends FlutterFlowModel<LocationPermissionPageWidget> {
+  ///  State fields for stateful widgets in this page.
+
+  // State field(s) for the city TextField widget.
+  FocusNode? cityFocusNode;
+  TextEditingController? cityTextController;
+  String? Function(BuildContext, String?)? cityTextControllerValidator;
+
   @override
   void initState(BuildContext context) {}
 
   @override
-  void dispose() {}
+  void dispose() {
+    cityFocusNode?.dispose();
+    cityTextController?.dispose();
+  }
 }

@@ -20,6 +20,10 @@ class DailyDiaryPageModel extends FlutterFlowModel<DailyDiaryPageWidget> {
 
   DocumentReference? currentDiaryEntryRef;
 
+  // Answers given so far this session, keyed by metricKey, so the "back"
+  // button can show what was previously entered for a question.
+  final Map<String, double> localAnswers = {};
+
   ///  State fields for stateful widgets in this page.
 
   // Stores action output result for [Firestore Query - Query a collection] action in DailyDiaryPage widget.

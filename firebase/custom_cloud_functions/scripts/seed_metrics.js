@@ -163,9 +163,13 @@ const METRICS = [
     isPredictor: true,
     unit: "drinks",
   }),
+  // Displayed with a 0.5L stepper starting from a 2L default - see the
+  // metricKey === 'water_intake' special-case in metric_answer_input.dart,
+  // which overrides these at render time regardless of what's seeded here.
   numeric("water_intake", "Water intake", "food_cravings", {
-    scaleMax: 15,
-    unit: "glasses",
+    scaleMax: 6,
+    step: 0.5,
+    unit: "L",
   }),
   boolean("late_meal", "Ate a late meal?", "food_cravings"),
   boolean("large_meal", "Ate a large meal?", "food_cravings"),

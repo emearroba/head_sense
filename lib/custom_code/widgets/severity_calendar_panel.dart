@@ -122,7 +122,6 @@ class SeverityCalendarPanel extends StatelessWidget {
 
     return SizedBox(
       width: width,
-      height: height,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final double availableWidth = constraints.maxWidth.isFinite
@@ -131,98 +130,117 @@ class SeverityCalendarPanel extends StatelessWidget {
           final double cellSize =
               ((availableWidth - monthColWidth - 6 * spacing) / 7)
                   .clamp(20.0, 36.0);
+          final double rowHeight = cellSize + spacing;
+          // Size to the actual number of weeks instead of always reserving a
+          // fixed box, which used to leave a lot of empty space below a
+          // short history. Only cap (and scroll) once there's genuinely more
+          // content than the caller's height allows.
+          final double contentHeight =
+              headerHeight + spacing + orderedWeeks.length * rowHeight;
+          final double maxHeight = height ?? contentHeight;
+          final bool needsScroll = contentHeight > maxHeight;
+          final double boxHeight =
+              needsScroll ? maxHeight : contentHeight;
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+          final weekRows = List.generate(orderedWeeks.length, (weekIndex) {
+            final week = orderedWeeks[weekIndex];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: spacing),
+              child: Row(
                 children: [
-                  const SizedBox(width: monthColWidth),
-                  ...List.generate(7, (col) {
-                    return Padding(
-                      padding: const EdgeInsets.only(right: spacing),
-                      child: SizedBox(
-                        width: cellSize,
-                        height: headerHeight,
-                        child: Center(
-                          child: Text(
-                            columnLabels[col],
-                            style: const TextStyle(
-                              color: Colors.white38,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
+                  SizedBox(
+                    width: monthColWidth,
+                    height: cellSize,
+                    child: orderedWeekMonthLabel[weekIndex].isEmpty
+                        ? null
+                        : Center(
+                            child: Text(
+                              orderedWeekMonthLabel[weekIndex],
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
+                  ),
+                  ...List.generate(7, (col) {
+                    final doc = week[col];
+                    final color = doc == null
+                        ? Colors.transparent
+                        : _colorForValue(doc.value, doc.isMissing);
+                    return Padding(
+                      padding: const EdgeInsets.only(right: spacing),
+                      child: Container(
+                        width: cellSize,
+                        height: cellSize,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(4),
                         ),
+                        child: doc == null
+                            ? null
+                            : Text(
+                                '${_dayOfMonth(doc.date)}',
+                                style: TextStyle(
+                                  color: doc.isMissing
+                                      ? Colors.white38
+                                      : Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     );
                   }),
                 ],
               ),
-              const SizedBox(height: spacing),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: orderedWeeks.length,
-                  itemBuilder: (context, weekIndex) {
-                    final week = orderedWeeks[weekIndex];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: spacing),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: monthColWidth,
-                            height: cellSize,
-                            child: orderedWeekMonthLabel[weekIndex].isEmpty
-                                ? null
-                                : Center(
-                                    child: Text(
-                                      orderedWeekMonthLabel[weekIndex],
-                                      style: const TextStyle(
-                                        color: Colors.white54,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                          ),
-                          ...List.generate(7, (col) {
-                            final doc = week[col];
-                            final color = doc == null
-                                ? Colors.transparent
-                                : _colorForValue(doc.value, doc.isMissing);
-                            return Padding(
-                              padding: const EdgeInsets.only(right: spacing),
-                              child: Container(
-                                width: cellSize,
-                                height: cellSize,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: doc == null
-                                    ? null
-                                    : Text(
-                                        '${_dayOfMonth(doc.date)}',
-                                        style: TextStyle(
-                                          color: doc.isMissing
-                                              ? Colors.white38
-                                              : Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
+            );
+          });
+
+          return SizedBox(
+            height: boxHeight,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const SizedBox(width: monthColWidth),
+                    ...List.generate(7, (col) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: spacing),
+                        child: SizedBox(
+                          width: cellSize,
+                          height: headerHeight,
+                          child: Center(
+                            child: Text(
+                              columnLabels[col],
+                              style: const TextStyle(
+                                color: Colors.white38,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
                               ),
-                            );
-                          }),
-                        ],
-                      ),
-                    );
-                  },
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: spacing),
+                needsScroll
+                    ? Expanded(
+                        child: ListView(children: weekRows),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: weekRows,
+                      ),
+              ],
+            ),
           );
         },
       ),

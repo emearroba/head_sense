@@ -302,7 +302,7 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                                   fontSize: 12.0,
                                 ),
                           ),
-                          const SizedBox(height: 8.0),
+                          const SizedBox(height: 2.0),
                           Container(
                             height: 48.0,
                             decoration: BoxDecoration(
@@ -550,46 +550,6 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                             ),
                           ),
                           const SizedBox(height: 20.0),
-                          StreamBuilder<List<DailyValuesRecord>>(
-                            stream: queryDailyValuesRecord(
-                              parent: dashboardDashboardRecord?.reference,
-                              queryBuilder: (dailyValuesRecord) =>
-                                  dailyValuesRecord.orderBy('date'),
-                            ),
-                            builder: (context, snapshot) {
-                              // Customize what your widget looks like when it's loading.
-                              if (!snapshot.hasData) {
-                                return Center(
-                                  child: SizedBox(
-                                    width: 50.0,
-                                    height: 50.0,
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        FlutterFlowTheme.of(context).primary,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }
-                              List<DailyValuesRecord>
-                                  symptomBarChartDailyValuesRecordList =
-                                  snapshot.data!;
-
-                              return Container(
-                                width: 350.0,
-                                height: 200.0,
-                                child: custom_widgets.SymptomBarChart(
-                                  width: 350.0,
-                                  height: 200.0,
-                                  documents:
-                                      symptomBarChartDailyValuesRecordList,
-                                  yAxisLabel:
-                                      '${dashboardDashboardRecord?.metricLabel} (0-10)',
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 20.0),
                           Card(
                             clipBehavior: Clip.antiAliasWithSaveLayer,
                             color: FlutterFlowTheme.of(context)
@@ -654,6 +614,46 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                             ),
                           ),
                           const SizedBox(height: 20.0),
+                          StreamBuilder<List<DailyValuesRecord>>(
+                            stream: queryDailyValuesRecord(
+                              parent: dashboardDashboardRecord?.reference,
+                              queryBuilder: (dailyValuesRecord) =>
+                                  dailyValuesRecord.orderBy('date'),
+                            ),
+                            builder: (context, snapshot) {
+                              // Customize what your widget looks like when it's loading.
+                              if (!snapshot.hasData) {
+                                return Center(
+                                  child: SizedBox(
+                                    width: 50.0,
+                                    height: 50.0,
+                                    child: CircularProgressIndicator(
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        FlutterFlowTheme.of(context).primary,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              List<DailyValuesRecord>
+                                  symptomBarChartDailyValuesRecordList =
+                                  snapshot.data!;
+
+                              return Container(
+                                width: 350.0,
+                                height: 200.0,
+                                child: custom_widgets.SymptomBarChart(
+                                  width: 350.0,
+                                  height: 200.0,
+                                  documents:
+                                      symptomBarChartDailyValuesRecordList,
+                                  yAxisLabel:
+                                      '${dashboardDashboardRecord?.metricLabel} (0-10)',
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 20.0),
                           Card(
                             clipBehavior: Clip.antiAliasWithSaveLayer,
                             color: FlutterFlowTheme.of(context)
@@ -679,7 +679,6 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                                   const SizedBox(height: 12.0),
                                   SizedBox(
                                     width: 350.0,
-                                    height: 420.0,
                                     child:
                                         StreamBuilder<List<DailyValuesRecord>>(
                                       stream: queryDailyValuesRecord(
@@ -711,6 +710,11 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                                         return custom_widgets
                                             .SeverityCalendarPanel(
                                           width: double.infinity,
+                                          // Cap so a long tracking history
+                                          // scrolls instead of growing the
+                                          // card without bound; shorter
+                                          // histories size down to fit.
+                                          height: 420.0,
                                           documents:
                                               calendarDailyValuesRecordList,
                                         );
@@ -766,70 +770,6 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                                       metricLabel:
                                           dashboardDashboardRecord!.metricLabel,
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20.0),
-                          Card(
-                            clipBehavior: Clip.antiAliasWithSaveLayer,
-                            color: FlutterFlowTheme.of(context)
-                                .secondaryBackground,
-                            elevation: 0.0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                            child: Padding(
-                              padding: EdgeInsets.all(12.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _sectionHeader(
-                                    context,
-                                    'Your Stats',
-                                    'Key numbers for the selected period: '
-                                        'average, minimum, maximum, and days '
-                                        'tracked.',
-                                  ),
-                                  const SizedBox(height: 8.0),
-                                  StreamBuilder<List<DailyValuesRecord>>(
-                                    stream: queryDailyValuesRecord(
-                                      parent:
-                                          dashboardDashboardRecord?.reference,
-                                      queryBuilder: (dailyValuesRecord) =>
-                                          dailyValuesRecord.orderBy('date'),
-                                    ),
-                                    builder: (context, snapshot) {
-                                      if (!snapshot.hasData) {
-                                        return Center(
-                                          child: SizedBox(
-                                            width: 24.0,
-                                            height: 24.0,
-                                            child: CircularProgressIndicator(
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                FlutterFlowTheme.of(context)
-                                                    .primary,
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                      final statsDailyValuesRecordList =
-                                          snapshot.data!;
-
-                                      return SizedBox(
-                                        width: double.infinity,
-                                        height: 150.0,
-                                        child:
-                                            custom_widgets.IntensityStatsPanel(
-                                          width: double.infinity,
-                                          height: 150.0,
-                                          documents: statsDailyValuesRecordList,
-                                        ),
-                                      );
-                                    },
                                   ),
                                 ],
                               ),

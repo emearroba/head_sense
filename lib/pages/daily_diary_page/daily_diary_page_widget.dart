@@ -133,6 +133,32 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
   // user's Track selection.
   static const _alwaysOnMetricKeys = {'headache_intensity', 'analgesia'};
 
+  // Scale questions (the 0-10 style ones) come first, then schedule/time
+  // questions, then everything else (boolean, numeric) - within each group
+  // the original Firestore `order` is preserved.
+  static int _questionGroup(String answerType) {
+    switch (answerType) {
+      case 'time':
+        return 1;
+      case 'boolean':
+      case 'numeric':
+        return 2;
+      default:
+        return 0;
+    }
+  }
+
+  static List<MetricsRecord> _orderQuestions(List<MetricsRecord> metrics) {
+    final indexed = metrics.asMap().entries.toList()
+      ..sort((a, b) {
+        final groupCompare = _questionGroup(a.value.answerType)
+            .compareTo(_questionGroup(b.value.answerType));
+        if (groupCompare != 0) return groupCompare;
+        return a.key.compareTo(b.key);
+      });
+    return indexed.map((e) => e.value).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<UsersRecord>(
@@ -183,11 +209,13 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
             ),
           );
         }
-        List<MetricsRecord> dailyDiaryPageMetricsRecordList = snapshot.data!
-            .where((m) =>
-                _alwaysOnMetricKeys.contains(m.metricKey) ||
-                trackedKeys.contains(m.metricKey))
-            .toList();
+        List<MetricsRecord> dailyDiaryPageMetricsRecordList = _orderQuestions(
+          snapshot.data!
+              .where((m) =>
+                  _alwaysOnMetricKeys.contains(m.metricKey) ||
+                  trackedKeys.contains(m.metricKey))
+              .toList(),
+        );
 
         return GestureDetector(
           onTap: () {
@@ -359,6 +387,29 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
                         Padding(
                           padding: EdgeInsetsDirectional.fromSTEB(
                               0.0, 20.0, 0.0, 0.0),
+                          child: Visibility(
+                            visible: _model.currentQuestionIndex! > 0,
+                            maintainSize: true,
+                            maintainAnimation: true,
+                            maintainState: true,
+                            child: IconButton(
+                              icon: Icon(
+                                Icons.arrow_back,
+                                color: FlutterFlowTheme.of(context)
+                                    .primaryText,
+                              ),
+                              tooltip: 'Go back to previous question',
+                              onPressed: () {
+                                _model.currentQuestionIndex =
+                                    _model.currentQuestionIndex! - 1;
+                                safeSetState(() {});
+                              },
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: EdgeInsetsDirectional.fromSTEB(
+                              0.0, 20.0, 0.0, 0.0),
                           child: Text(
                             valueOrDefault<String>(
                               dailyDiaryPageMetricsRecordList
@@ -418,6 +469,21 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
                           child: Padding(
                             padding: EdgeInsets.all(10.0),
                             child: custom_widgets.MetricAnswerInput(
+                              key: ValueKey(dailyDiaryPageMetricsRecordList
+                                      .elementAtOrNull(
+                                          _model.currentQuestionIndex!)
+                                      ?.metricKey ??
+                                  _model.currentQuestionIndex),
+                              metricKey: dailyDiaryPageMetricsRecordList
+                                      .elementAtOrNull(
+                                          _model.currentQuestionIndex!)
+                                      ?.metricKey ??
+                                  '',
+                              initialValue: _model.localAnswers[
+                                  dailyDiaryPageMetricsRecordList
+                                      .elementAtOrNull(
+                                          _model.currentQuestionIndex!)
+                                      ?.metricKey],
                               answerType: dailyDiaryPageMetricsRecordList
                                       .elementAtOrNull(
                                           _model.currentQuestionIndex!)
@@ -448,6 +514,8 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
                                     dailyDiaryPageMetricsRecordList
                                         .elementAtOrNull(
                                             _model.currentQuestionIndex!)!;
+                                _model.localAnswers[currentMetric.metricKey] =
+                                    value;
                                 await ResponsesRecord.createDoc(
                                   _model.currentDiaryEntryRef!,
                                   id: currentMetric.metricKey,

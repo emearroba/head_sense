@@ -167,8 +167,8 @@ class _ClinicalDonutChartState extends State<ClinicalDonutChart> {
                           'Missing Days', widget.missingDays, missingColor,
                           total: totalDays),
                       const Divider(color: Colors.white24, height: 14),
-                      _buildLegendItem('Painkillers Used',
-                          widget.painkillerDays, painkillerColor,
+                      _buildLegendItem(
+                          'Painkillers', widget.painkillerDays, painkillerColor,
                           isOuter: true, total: trackedDays),
                     ],
                   ),
@@ -327,6 +327,7 @@ class _ClinicalDonutChartState extends State<ClinicalDonutChart> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: 6),
           Text(
             trailing,
             style: const TextStyle(

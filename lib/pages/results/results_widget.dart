@@ -1,8 +1,11 @@
+import 'dart:math';
+
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
 import '/custom_code/widgets/index.dart' as custom_widgets;
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'results_model.dart';
@@ -27,6 +30,7 @@ class ResultsWidget extends StatefulWidget {
 class _ResultsWidgetState extends State<ResultsWidget> {
   late ResultsModel _model;
   final scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _seeding = false;
 
   @override
   void initState() {
@@ -113,6 +117,33 @@ class _ResultsWidgetState extends State<ResultsWidget> {
                       )
                     else
                       _lockedAnalysisCard(context, totalDays),
+                    const SizedBox(height: 12.0),
+                    // TEMPORARY dev-only affordance to backfill fake diary
+                    // days for testing the pattern gates - remove once no
+                    // longer needed. Shown regardless of plan so it stays
+                    // usable after flipping to premium too.
+                    OutlinedButton(
+                      onPressed: _seeding
+                          ? null
+                          : () => _seedAverageUserHistory(
+                              context, dateKeys, user.trackedMetricKeys),
+                      child: _seeding
+                          ? const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2.0),
+                                ),
+                                SizedBox(width: 10.0),
+                                Text('Seeding…'),
+                              ],
+                            )
+                          : const Text(
+                              'DEV: seed ~90d average-user history (with gaps)'),
+                    ),
                   ],
                 );
               },
@@ -138,8 +169,8 @@ class _ResultsWidgetState extends State<ResultsWidget> {
         ),
         const SizedBox(height: 8.0),
         Text(
-          'Your Pattern, What Seems Connected, How You\'re Changing, and '
-          'Worth Watching will unlock here.',
+          'Your personal discoveries — the habits, days, and trends that '
+          'line up with how you feel — will unlock here.',
           style: FlutterFlowTheme.of(context).labelSmall.override(
                 font: GoogleFonts.inter(),
                 color: FlutterFlowTheme.of(context).secondaryText,
@@ -155,5 +186,260 @@ class _ResultsWidgetState extends State<ResultsWidget> {
         ),
       ],
     );
+  }
+
+  // TEMPORARY dev-only helper: backfills a realistic ~90-day "average user"
+  // history - covers the 30/60/90-day pattern windows, at ~82% logging
+  // compliance (comfortably over the 80% periodHasEnoughData bar) so some
+  // days come out genuinely missing, and with a mild/moderate/severe/
+  // crystal value mix so spikeCount has a realistic chance of clearing the
+  // analysisEligible bar too. Also backfills every currently-tracked
+  // scale-type variable (boolean/numeric/time ones are skipped - the cloud
+  // function doesn't bucket those into a severity dashboard at all), and
+  // deliberately engineers ONE of them to lead headache_intensity by 2
+  // days so the delayed-effect discovery card has something real to
+  // surface - purely for this dev demo, not a claim about that metric.
+  //
+  // Fake diary_entries are tagged isDevSeed:true so re-running this is
+  // safe: brand-new days get created fresh, previously-faked days get the
+  // newly-tracked variables backfilled onto them, and real (non-tagged)
+  // days are never touched. Remove this whole affordance once no longer
+  // needed.
+  Future<void> _seedAverageUserHistory(
+    BuildContext context,
+    List<String> existingDateKeys,
+    List<String> trackedMetricKeys,
+  ) async {
+    setState(() => _seeding = true);
+    try {
+      // PatternInsightsPanel itself is gated behind a paying plan (see the
+      // isPaying check above) - bump this dev account to premium too, so
+      // seeding actually produces something visible instead of leaving the
+      // paywall card up in front of freshly-seeded data.
+      final user = await UsersRecord.getDocumentOnce(currentUserReference!);
+      if (user.plan != 'core' && user.plan != 'premium') {
+        await currentUserReference!.update({'plan': 'premium'});
+      }
+      await _runSeedAverageUserHistory(
+          context, existingDateKeys, trackedMetricKeys);
+    } finally {
+      if (mounted) setState(() => _seeding = false);
+    }
+  }
+
+  // Batches every write (up to Firestore's 500-ops/batch limit) instead of
+  // awaiting each .set() one at a time - with ~90 days x (1 entry + 1
+  // headache response + N tracked-metric responses) that was several
+  // hundred sequential round-trips and visibly slow.
+  Future<void> _runSeedAverageUserHistory(
+    BuildContext context,
+    List<String> existingDateKeys,
+    List<String> trackedMetricKeys,
+  ) async {
+    final existing = existingDateKeys.toSet();
+    final rand = Random();
+    var seededCount = 0;
+    var skippedCount = 0;
+
+    var batch = FirebaseFirestore.instance.batch();
+    var opsInBatch = 0;
+    Future<void> flushBatch() async {
+      if (opsInBatch == 0) return;
+      await batch.commit();
+      batch = FirebaseFirestore.instance.batch();
+      opsInBatch = 0;
+    }
+
+    void batchSet(DocumentReference ref, Map<String, dynamic> data) {
+      batch.set(ref, data, SetOptions(merge: true));
+      opsInBatch++;
+    }
+
+    final activeMetrics = await queryMetricsRecordOnce(
+      queryBuilder: (q) => q.where('isActive', isEqualTo: true),
+    );
+    // Split by answerType since each shape needs different fake data:
+    // scale gets the same 0-10 severity distribution as headache, boolean
+    // gets a weighted coin flip, numeric gets a uniform value across the
+    // metric's own scaleMin/scaleMax. 'time' metrics (bed_time/wake_time)
+    // are skipped - update_dashboard_metric.js doesn't compute a dashboard
+    // doc for them either, so there'd be nothing to backfill toward.
+    final trackedActive =
+        activeMetrics.where((m) => trackedMetricKeys.contains(m.metricKey));
+    final scaleMetrics = trackedActive
+        .where((m) => m.answerType.isEmpty || m.answerType == 'scale')
+        .toList();
+    final booleanMetrics =
+        trackedActive.where((m) => m.answerType == 'boolean').toList();
+    final numericMetrics =
+        trackedActive.where((m) => m.answerType == 'numeric').toList();
+    final backfilledCount =
+        scaleMetrics.length + booleanMetrics.length + numericMetrics.length;
+
+    final correlatedKey = scaleMetrics.isEmpty
+        ? null
+        : (scaleMetrics.firstWhereOrNull((m) => m.metricKey == 'fatigue') ??
+                scaleMetrics.firstWhereOrNull((m) =>
+                    m.metricKey == 'insomnia' ||
+                    m.metricKey == 'poor_sleep_quality') ??
+                scaleMetrics.first)
+            .metricKey;
+    const correlatedLagDays = 2;
+
+    // Days already faked (this run or a previous one) - safe to backfill
+    // more metrics onto. Real user days are never in this set.
+    final devSeededSnap = await FirebaseFirestore.instance
+        .collection('diary_entries')
+        .where('userRef', isEqualTo: currentUserReference)
+        .where('isDevSeed', isEqualTo: true)
+        .get();
+    final devSeededKeys = {
+      for (final d in devSeededSnap.docs)
+        if (d.data()['entryDateKey'] != null)
+          d.data()['entryDateKey'] as String,
+    };
+
+    // headache_intensity values (real + previously dev-seeded) across the
+    // window, so the engineered lag can reference values that already
+    // existed before this run, not only ones created in it.
+    final headacheDashboards = await queryDashboardRecordOnce(
+      queryBuilder: (q) => q
+          .where('userRef', isEqualTo: currentUserReference)
+          .where('metricKey', isEqualTo: 'headache_intensity')
+          .where('periodType', isEqualTo: 'last90'),
+    );
+    final headacheByDate = <String, double>{
+      for (final d in headacheDashboards.firstOrNull?.dailyValues ?? const [])
+        if (d.isTracked) d.date: d.value,
+    };
+
+    int sampleValue() {
+      final r = rand.nextDouble();
+      if (r < 0.45) return 0; // symptom-free ("crystal") day
+      if (r < 0.75) return 1 + rand.nextInt(3); // mild: 1-3
+      if (r < 0.90) return 4 + rand.nextInt(3); // moderate: 4-6
+      return 7 + rand.nextInt(4); // severe: 7-10
+    }
+
+    double correlatedValue(String dateKey) {
+      final futureKey = dateTimeFormat(
+        'yyyy-MM-dd',
+        DateTime.parse(dateKey).add(const Duration(days: correlatedLagDays)),
+      );
+      final futureHeadache = headacheByDate[futureKey];
+      if (futureHeadache == null) return sampleValue().toDouble();
+      return (futureHeadache + (rand.nextDouble() * 4 - 2))
+          .clamp(0, 10)
+          .roundToDouble();
+    }
+
+    void queueTrackedMetrics(DocumentReference entryRef, String key) {
+      for (final metric in scaleMetrics) {
+        final value = metric.metricKey == correlatedKey
+            ? correlatedValue(key)
+            : sampleValue().toDouble();
+        batchSet(
+          ResponsesRecord.createDoc(entryRef, id: metric.metricKey),
+          createResponsesRecordData(
+            metricKey: metric.metricKey,
+            metricLabel: metric.metricLabel,
+            valueNumber: value,
+          ),
+        );
+      }
+      for (final metric in booleanMetrics) {
+        batchSet(
+          ResponsesRecord.createDoc(entryRef, id: metric.metricKey),
+          createResponsesRecordData(
+            metricKey: metric.metricKey,
+            metricLabel: metric.metricLabel,
+            valueNumber: rand.nextDouble() < 0.4 ? 1.0 : 0.0,
+          ),
+        );
+      }
+      for (final metric in numericMetrics) {
+        final min = metric.scaleMin.toDouble();
+        final max =
+            metric.scaleMax > metric.scaleMin ? metric.scaleMax.toDouble() : min + 10.0;
+        final value = min + rand.nextDouble() * (max - min);
+        batchSet(
+          ResponsesRecord.createDoc(entryRef, id: metric.metricKey),
+          createResponsesRecordData(
+            metricKey: metric.metricKey,
+            metricLabel: metric.metricLabel,
+            valueNumber: double.parse(value.toStringAsFixed(1)),
+          ),
+        );
+      }
+    }
+
+    // Ascending so that when we reach day i and need headache_intensity
+    // from day (i - correlatedLagDays) - a more recent day - it's already
+    // been generated (smaller i's are processed first).
+    for (var i = 1; i <= 90; i++) {
+      final date = DateTime.now().subtract(Duration(days: i));
+      final key = dateTimeFormat('yyyy-MM-dd', date);
+
+      if (!existing.contains(key)) {
+        if (rand.nextDouble() > 0.82) {
+          skippedCount++;
+          continue; // left as a genuinely missing day
+        }
+        final entryRef = DiaryEntriesRecord.collection
+            .doc('${currentUserReference!.id}_$key');
+        batchSet(entryRef, {
+          ...createDiaryEntriesRecordData(
+            userRef: currentUserReference,
+            entryDateKey: key,
+            entryDate: date,
+            completedAt: date,
+            isComplete: true,
+            coinsEarned: 0,
+          ),
+          'isDevSeed': true,
+        });
+        final headacheValue = sampleValue().toDouble();
+        headacheByDate[key] = headacheValue;
+        batchSet(
+          ResponsesRecord.createDoc(entryRef, id: 'headache_intensity'),
+          createResponsesRecordData(
+            metricKey: 'headache_intensity',
+            metricLabel: 'Headache intensity',
+            valueNumber: headacheValue,
+          ),
+        );
+        queueTrackedMetrics(entryRef, key);
+        seededCount++;
+      } else if (devSeededKeys.contains(key)) {
+        final entryRef = DiaryEntriesRecord.collection
+            .doc('${currentUserReference!.id}_$key');
+        queueTrackedMetrics(entryRef, key);
+      }
+      // else: a real, non-dev-seeded day - left untouched.
+
+      // Stay comfortably under Firestore's 500-writes-per-batch limit -
+      // each day can add up to 2 + backfilledCount ops.
+      if (opsInBatch >= 400) await flushBatch();
+    }
+    await flushBatch();
+
+    if (context.mounted) {
+      final correlatedLabel = correlatedKey == null
+          ? null
+          : scaleMetrics
+              .firstWhere((m) => m.metricKey == correlatedKey)
+              .metricLabel;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Seeded $seededCount new days (skipped $skippedCount as '
+            'missing), backfilled $backfilledCount tracked variable(s) '
+            '(${scaleMetrics.length} scale, ${booleanMetrics.length} '
+            'boolean, ${numericMetrics.length} numeric).'
+            '${correlatedLabel != null ? ' "$correlatedLabel" engineered to lead headache by $correlatedLagDays days.' : ''}',
+          ),
+        ),
+      );
+    }
   }
 }

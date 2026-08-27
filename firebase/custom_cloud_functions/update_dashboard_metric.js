@@ -429,6 +429,10 @@ exports.dateKeyFromDate = dateKeyFromDate;
 exports.getCategory = getCategory;
 exports.getBarColor = getBarColor;
 exports.calculateStreaks = calculateStreaks;
+// TEMP (mock-data seeding): exposes the real aggregation logic so a seed
+// script can call it directly against the emulator without relying on the
+// Functions emulator's onWrite trigger. Safe to remove after seeding.
+exports.calculateDashboardForPeriod = calculateDashboardForPeriod;
 
 exports.updateDashboardMetric = functions.firestore
   .document("diary_entries/{entryId}/responses/{metricKey}")
@@ -456,10 +460,17 @@ exports.updateDashboardMetric = functions.firestore
         ? metricSnap.data().metricLabel
         : metricKey;
 
-    // The 0-10 severity dashboard (donut/calendar/streaks) only makes sense
-    // for scale-type outcomes. Boolean/numeric predictors (on_period,
-    // hours_slept, ...) still have their raw response stored above; they
-    // just don't get bucketed into crystal/mild/moderate/severe here.
+    // The 0-10 crystal/mild/moderate/severe bucketing below is headache-
+    // shaped, but the underlying per-day value/dailyValues computation is
+    // generic - it just reads whatever numeric answer was stored. So we
+    // still compute a dashboard doc for boolean (0/1) and numeric
+    // predictors (aerobic_exercise, hours_slept, ...), which is what lets
+    // the Patterns "discoveries" feed find connections to them - the
+    // severity-bucket fields (isMild/isSevere/etc.) just won't mean
+    // anything for those and are ignored by non-scale consumers.
+    // 'time' metrics (bed_time/wake_time, stored as minutes-since-midnight)
+    // are excluded: their magnitude doesn't compare meaningfully against
+    // other metrics without clock-aware formatting the UI doesn't have yet.
     // Metrics without an answerType (e.g. the original headache metric)
     // are treated as scale for backward compatibility.
     const answerType =
@@ -467,7 +478,7 @@ exports.updateDashboardMetric = functions.firestore
         ? metricSnap.data().answerType
         : "scale";
 
-    if (answerType !== "scale") {
+    if (answerType === "time") {
       return null;
     }
 

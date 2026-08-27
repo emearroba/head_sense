@@ -1,8 +1,11 @@
+import '/auth/firebase_auth/auth_util.dart';
+import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/flutter_flow/flutter_flow_widgets.dart';
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -26,8 +29,44 @@ class JoinStudyWidget extends StatefulWidget {
 
 class _JoinStudyWidgetState extends State<JoinStudyWidget> {
   late JoinStudyModel _model;
+  bool _joining = false;
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
+
+  Future<void> _joinWithCode() async {
+    final code = _model.textController.text.trim().toUpperCase();
+    if (code.isEmpty || currentUserReference == null || _joining) return;
+    setState(() => _joining = true);
+
+    final matches = await queryStudiesRecordOnce(
+      queryBuilder: (q) => q
+          .where('accessCode', isEqualTo: code)
+          .where('isActive', isEqualTo: true),
+      limit: 1,
+    );
+
+    if (!mounted) return;
+    if (matches.isEmpty) {
+      setState(() => _joining = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active study matches that code.')),
+      );
+      return;
+    }
+
+    final study = matches.first;
+    await currentUserReference!.update({
+      'joinedStudyIds': FieldValue.arrayUnion([study.reference.id]),
+      'studyParticipant': true,
+    });
+
+    if (!mounted) return;
+    setState(() => _joining = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Joined ${study.studyName}')),
+    );
+    Navigator.of(context).pop();
+  }
 
   @override
   void initState() {
@@ -300,10 +339,8 @@ class _JoinStudyWidgetState extends State<JoinStudyWidget> {
                                   ],
                                 ),
                                 FFButtonWidget(
-                                  onPressed: () {
-                                    print('Button pressed ...');
-                                  },
-                                  text: 'Join Study',
+                                  onPressed: _joining ? () {} : _joinWithCode,
+                                  text: _joining ? 'Joining...' : 'Join Study',
                                   options: FFButtonOptions(
                                     width: double.infinity,
                                     height: 54.0,

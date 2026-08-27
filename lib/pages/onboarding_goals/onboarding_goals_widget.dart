@@ -101,7 +101,7 @@ class _OnboardingGoalsWidgetState extends State<OnboardingGoalsWidget> {
     });
 
     if (mounted) {
-      context.goNamed(DailyDiaryPageWidget.routeName);
+      context.goNamed(LocationPermissionPageWidget.routeName);
     }
   }
 
