@@ -12,3 +12,4 @@ export 'pattern_insights_panel.dart' show PatternInsightsPanel;
 export 'add_reminder_sheet_widget.dart' show AddReminderSheetWidget;
 export 'orbit_celebration_animation.dart' show OrbitCelebrationAnimation;
 export 'diary_completed_card.dart' show DiaryCompletedCard;
+export 'orbit_logo.dart' show OrbitLogo;

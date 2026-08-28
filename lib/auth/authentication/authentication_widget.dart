@@ -1,5 +1,6 @@
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
+import '/custom_code/widgets/index.dart' as custom_widgets;
 import '/flutter_flow/flutter_flow_animations.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -296,14 +297,9 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
   }
 
   Widget _logo(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20.0),
-      child: Image.asset(
-        'assets/images/app_icon_orbit.png',
-        width: 88.0,
-        height: 88.0,
-        fit: BoxFit.cover,
-      ),
+    return const custom_widgets.OrbitLogo(
+      width: 180.0,
+      height: 180.0,
     );
   }
 
@@ -365,6 +361,27 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           _logo(context),
+                          const SizedBox(height: 16.0),
+                          Text(
+                            'Somatica',
+                            textAlign: TextAlign.center,
+                            style: theme.headlineMedium.override(
+                              font: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.0,
+                            ),
+                          ),
+                          const SizedBox(height: 4.0),
+                          Text(
+                            'Understand your patterns.',
+                            textAlign: TextAlign.center,
+                            style: theme.bodyMedium.override(
+                              font: GoogleFonts.plusJakartaSans(),
+                              color: theme.secondaryText,
+                              letterSpacing: 0.0,
+                            ),
+                          ),
                           const SizedBox(height: 24.0),
                           Container(
                             width: double.infinity,
