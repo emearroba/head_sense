@@ -31,6 +31,8 @@ class _ResultsWidgetState extends State<ResultsWidget> {
   late ResultsModel _model;
   final scaffoldKey = GlobalKey<ScaffoldState>();
   bool _seeding = false;
+  // 0 = My symptoms, 1 = Connections.
+  int _mainTabIndex = 0;
 
   @override
   void initState() {
@@ -109,13 +111,26 @@ class _ResultsWidgetState extends State<ResultsWidget> {
                   padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 120.0),
                   children: [
                     const custom_widgets.TrackingProgressCard(),
-                    const SizedBox(height: 28),
-                    if (isPaying)
-                      custom_widgets.PatternInsightsPanel(
-                        trackedMetricKeys: user.trackedMetricKeys,
-                        userPlan: user.plan,
-                      )
-                    else
+                    const SizedBox(height: 18),
+                    Divider(
+                      height: 1.0,
+                      color: FlutterFlowTheme.of(context).alternate,
+                    ),
+                    const SizedBox(height: 18),
+                    if (isPaying) ...[
+                      _mainTabs(context),
+                      const SizedBox(height: 16.0),
+                      if (_mainTabIndex == 0)
+                        custom_widgets.PatternInsightsPanel(
+                          trackedMetricKeys: user.trackedMetricKeys,
+                          userPlan: user.plan,
+                        )
+                      else
+                        custom_widgets.ConnectionsPanel(
+                          trackedMetricKeys: user.trackedMetricKeys,
+                          userPlan: user.plan,
+                        ),
+                    ] else
                       _lockedAnalysisCard(context, totalDays),
                     const SizedBox(height: 12.0),
                     // TEMPORARY dev-only affordance to backfill fake diary
@@ -149,6 +164,49 @@ class _ResultsWidgetState extends State<ResultsWidget> {
               },
             );
           },
+        ),
+      ),
+    );
+  }
+
+  // Two main tabs below the "Patterns" header: single-symptom results vs.
+  // cross-symptom relationships. Deliberately compact (one row, no extra
+  // caption) since filters/navigation chrome should take minimal space —
+  // the results underneath are what should dominate the screen.
+  Widget _mainTabs(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: _mainTabButton(context, 0, 'My symptoms')),
+        const SizedBox(width: 8.0),
+        Expanded(child: _mainTabButton(context, 1, 'Connections ✦')),
+      ],
+    );
+  }
+
+  Widget _mainTabButton(BuildContext context, int index, String label) {
+    final selected = _mainTabIndex == index;
+    final theme = FlutterFlowTheme.of(context);
+    return InkWell(
+      onTap: () => setState(() => _mainTabIndex = index),
+      borderRadius: BorderRadius.circular(14.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF123C45) : const Color(0xFF1A2A33),
+          borderRadius: BorderRadius.circular(14.0),
+          border: Border.all(
+            color: selected ? theme.primary : Colors.transparent,
+            width: 1.0,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13.0,
+            fontWeight: FontWeight.w700,
+            color: selected ? theme.primary : theme.primaryText,
+          ),
         ),
       ),
     );
