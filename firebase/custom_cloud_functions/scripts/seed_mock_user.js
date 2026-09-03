@@ -16,6 +16,21 @@
 const path = require("path");
 const admin = require("firebase-admin");
 
+// This script writes ~90 days x 31 metrics of diary_entries/responses docs.
+// Each response write fires the deployed updateDashboardMetric trigger,
+// which recomputes 5 rolling windows (30/60/90/180/365 days) from scratch -
+// against production that's ~600k Firestore reads/writes for one run (this
+// happened on 2026-08-30). Refuse to run unless the emulator is targeted.
+if (!process.env.FIRESTORE_EMULATOR_HOST) {
+  throw new Error(
+    "FIRESTORE_EMULATOR_HOST is not set - refusing to run against " +
+      "production Firestore. Start the emulator and set " +
+      "FIRESTORE_EMULATOR_HOST=localhost:8080 (and " +
+      "FIREBASE_AUTH_EMULATOR_HOST=localhost:9099) before running this " +
+      "script. See the usage comment at the top of this file.",
+  );
+}
+
 if (!admin.apps.length) {
   admin.initializeApp({ projectId: "head-sense-1111" });
 }

@@ -84,33 +84,11 @@ function calculateStreaks(dailyValues, categoryName) {
   return { current, longest };
 }
 
-async function calculateDashboardForPeriod({
-  userRef,
-  userId,
-  metricKey,
-  metricLabel,
-  metricRef,
-  trackingDay,
-  periodType,
-  periodDays,
-}) {
-  const now = new Date();
-  const periodEnd = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      23,
-      59,
-      59,
-      999,
-    ),
-  );
-
-  const periodStart = new Date(periodEnd);
-  periodStart.setUTCDate(periodStart.getUTCDate() - (periodDays - 1));
-  periodStart.setUTCHours(0, 0, 0, 0);
-
+// Queries diary_entries + their metricKey/painkiller responses once for
+// [periodStart, periodEnd]. Callers covering several shorter periods within
+// this range can reuse the same maps instead of re-querying per period -
+// see the entryDateMaps param on calculateDashboardForPeriod below.
+async function fetchEntryDateMaps({ userRef, metricKey, periodStart, periodEnd }) {
   const entriesSnap = await db
     .collection("diary_entries")
     .where("userRef", "==", userRef)
@@ -171,6 +149,45 @@ async function calculateDashboardForPeriod({
       painkillerByDate.set(item.dateKey, item.painkillerUsed);
     }
   }
+
+  return { valueByDate, painkillerByDate };
+}
+
+async function calculateDashboardForPeriod({
+  userRef,
+  userId,
+  metricKey,
+  metricLabel,
+  metricRef,
+  trackingDay,
+  periodType,
+  periodDays,
+  // Optional { valueByDate, painkillerByDate } already covering this
+  // period's range (see fetchEntryDateMaps) - pass this when computing
+  // several periods for the same user/metric back to back so each one
+  // doesn't re-query + re-read the same overlapping diary_entries history.
+  entryDateMaps,
+}) {
+  const now = new Date();
+  const periodEnd = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      23,
+      59,
+      59,
+      999,
+    ),
+  );
+
+  const periodStart = new Date(periodEnd);
+  periodStart.setUTCDate(periodStart.getUTCDate() - (periodDays - 1));
+  periodStart.setUTCHours(0, 0, 0, 0);
+
+  const { valueByDate, painkillerByDate } =
+    entryDateMaps ??
+    (await fetchEntryDateMaps({ userRef, metricKey, periodStart, periodEnd }));
 
   const dailyValues = [];
   let previousValue = null;
@@ -505,6 +522,39 @@ exports.updateDashboardMetric = functions.firestore
       trackingDay = Math.max(1, trackingDay);
     }
 
+    // Todos los periodos (30/60/90/180/365 días) comparten el mismo tramo
+    // final de historial: en vez de que cada uno vuelva a consultar
+    // diary_entries + responses desde cero (5 queries + 5x lecturas por
+    // entrada para el mismo rango solapado), se consulta una sola vez la
+    // ventana más ancha (365 días) y se reutiliza para los 5 - esto es lo
+    // que multiplicaba una sola escritura en miles de lecturas/escrituras
+    // (ver incidente de facturación del 2026-08-30).
+    const widestPeriod = PERIODS.reduce((a, b) => (a.days > b.days ? a : b));
+    const nowForWidestPeriod = new Date();
+    const widestPeriodEnd = new Date(
+      Date.UTC(
+        nowForWidestPeriod.getUTCFullYear(),
+        nowForWidestPeriod.getUTCMonth(),
+        nowForWidestPeriod.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      ),
+    );
+    const widestPeriodStart = new Date(widestPeriodEnd);
+    widestPeriodStart.setUTCDate(
+      widestPeriodStart.getUTCDate() - (widestPeriod.days - 1),
+    );
+    widestPeriodStart.setUTCHours(0, 0, 0, 0);
+
+    const entryDateMaps = await fetchEntryDateMaps({
+      userRef,
+      metricKey,
+      periodStart: widestPeriodStart,
+      periodEnd: widestPeriodEnd,
+    });
+
     // PARALELIZACIÓN: Ejecutar el cálculo de los 5 periodos al mismo tiempo
     await Promise.all(
       PERIODS.map((period) =>
@@ -517,6 +567,7 @@ exports.updateDashboardMetric = functions.firestore
           trackingDay,
           periodType: period.type,
           periodDays: period.days,
+          entryDateMaps,
         }),
       ),
     );
