@@ -28,11 +28,19 @@ class SymptomSelectorBubble extends StatelessWidget {
   final String selectedKey;
   final void Function(String metricKey) onSelected;
 
+  // Metric labels aren't consistently cased in Firestore (some are
+  // ALL CAPS, some are already "Sentence case") - normalize to sentence
+  // case here so the picker reads consistently regardless of source data.
+  static String _sentenceCase(String label) => label.isEmpty
+      ? label
+      : '${label[0].toUpperCase()}${label.substring(1).toLowerCase()}';
+
   @override
   Widget build(BuildContext context) {
     final selected = metrics.where((m) => m.metricKey == selectedKey);
-    final selectedLabel =
-        selected.isNotEmpty ? selected.first.metricLabel : 'Select symptom';
+    final selectedLabel = selected.isNotEmpty
+        ? _sentenceCase(selected.first.metricLabel)
+        : 'Select symptom';
 
     return InkWell(
       onTap: () => _openPicker(context),
@@ -89,7 +97,7 @@ class SymptomSelectorBubble extends StatelessWidget {
                 final isSelected = m.metricKey == selectedKey;
                 return ListTile(
                   title: Text(
-                    m.metricLabel,
+                    _sentenceCase(m.metricLabel),
                     style: TextStyle(
                       color: isTracked
                           ? FlutterFlowTheme.of(context).primaryText

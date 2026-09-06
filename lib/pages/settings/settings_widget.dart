@@ -1,6 +1,7 @@
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/api_requests/api_calls.dart';
 import '/backend/backend.dart';
+import '/custom_code/health_sync_service.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/index.dart';
@@ -76,6 +77,20 @@ class _SettingsWidgetState extends State<SettingsWidget> {
               subtitle: 'Configure your daily diary reminders',
               onTap: () => context.pushNamed(RemindersWidget.routeName),
             ),
+            const SizedBox(height: 12),
+            _settingsTile(
+              context,
+              icon: Icons.medication_outlined,
+              title: 'Interventions',
+              subtitle: 'Medications, doses, and diet types you\'re using',
+              onTap: () => context.pushNamed(InterventionsWidget.routeName),
+            ),
+            if (HealthSyncService.instance.isSupported) ...[
+              const SizedBox(height: 28),
+              _sectionTitle(context, 'Connected Health'),
+              const SizedBox(height: 12),
+              _healthSyncCard(context),
+            ],
             const SizedBox(height: 28),
             _sectionTitle(context, 'Your Profile'),
             const SizedBox(height: 12),
@@ -207,6 +222,189 @@ class _SettingsWidgetState extends State<SettingsWidget> {
       borderRadius: BorderRadius.circular(8.0),
       child: row,
     );
+  }
+
+  Widget _healthSyncCard(BuildContext context) {
+    if (currentUserReference == null) return const SizedBox.shrink();
+    final service = HealthSyncService.instance;
+
+    return ListenableBuilder(
+      listenable: FFAppState(),
+      builder: (context, _) {
+        final enabled = FFAppState().healthSyncEnabled;
+
+        return Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color: FlutterFlowTheme.of(context).secondaryBackground,
+            borderRadius: BorderRadius.circular(12.0),
+            border: Border.all(
+              color: FlutterFlowTheme.of(context).alternate,
+              width: 1.0,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.favorite_border,
+                      color: FlutterFlowTheme.of(context).primary, size: 20.0),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sync with ${service.platformLabel}',
+                          style:
+                              FlutterFlowTheme.of(context).bodyMedium.override(
+                                    font: GoogleFonts.inter(
+                                        fontWeight: FontWeight.w600),
+                                    color:
+                                        FlutterFlowTheme.of(context).primaryText,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                        ),
+                        Text(
+                          'Bring in sleep, steps and resting heart rate automatically',
+                          style:
+                              FlutterFlowTheme.of(context).labelSmall.override(
+                                    font: GoogleFonts.inter(),
+                                    color: FlutterFlowTheme.of(context)
+                                        .secondaryText,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: enabled,
+                    onChanged: (value) => _toggleHealthSync(context, value),
+                  ),
+                ],
+              ),
+              if (enabled) ...[
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () => _syncHealthNow(context),
+                  child: Row(
+                    children: [
+                      Icon(Icons.sync,
+                          color: FlutterFlowTheme.of(context).primary,
+                          size: 18.0),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Sync now',
+                        style:
+                            FlutterFlowTheme.of(context).bodySmall.override(
+                                  font: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600),
+                                  color: FlutterFlowTheme.of(context).primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Divider(color: FlutterFlowTheme.of(context).alternate),
+                const SizedBox(height: 4),
+                StreamBuilder<UsersRecord>(
+                  stream: UsersRecord.getDocument(currentUserReference!),
+                  builder: (context, userSnapshot) {
+                    final consent =
+                        userSnapshot.data?.healthDataResearchConsent ?? false;
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Allow this data to be used for research',
+                            style: FlutterFlowTheme.of(context)
+                                .labelSmall
+                                .override(
+                                  font: GoogleFonts.inter(),
+                                  color:
+                                      FlutterFlowTheme.of(context).secondaryText,
+                                ),
+                          ),
+                        ),
+                        Switch(
+                          value: consent,
+                          onChanged: (value) =>
+                              currentUserReference!.update({
+                            'healthDataResearchConsent': value,
+                          }),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _toggleHealthSync(BuildContext context, bool value) async {
+    final service = HealthSyncService.instance;
+
+    if (!value) {
+      FFAppState().healthSyncEnabled = false;
+      if (currentUserReference != null) {
+        await currentUserReference!.update({
+          'trackedMetricKeys':
+              FieldValue.arrayRemove(HealthSyncService.trackedMetricKeys),
+        });
+      }
+      return;
+    }
+
+    if (!await service.isAvailable()) {
+      await service.promptInstall();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Install ${service.platformLabel} first, then try again'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final granted = await service.requestPermissions();
+    if (!granted) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permission was not granted')),
+        );
+      }
+      return;
+    }
+
+    FFAppState().healthSyncEnabled = true;
+    if (currentUserReference != null) {
+      await currentUserReference!.update({
+        'trackedMetricKeys':
+            FieldValue.arrayUnion(HealthSyncService.trackedMetricKeys),
+      });
+    }
+    if (!context.mounted) return;
+    await _syncHealthNow(context, lookback: const Duration(days: 30));
+  }
+
+  Future<void> _syncHealthNow(BuildContext context,
+      {Duration lookback = const Duration(days: 7)}) async {
+    final count = await HealthSyncService.instance
+        .syncRecentData(lookback: lookback);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Synced $count health samples')),
+      );
+    }
   }
 
   Widget _signOutTile(BuildContext context) {

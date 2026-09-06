@@ -112,6 +112,42 @@ class UsersRecord extends FirestoreRecord {
   List<String> get joinedStudyIds => _joinedStudyIds ?? const [];
   bool hasJoinedStudyIds() => _joinedStudyIds != null;
 
+  // "medicationDoses" field. Document ids into the `medications` collection,
+  // mapped to the dose the user takes (a string from that medication's
+  // `commonDoses`, or a custom one) - the Interventions section under
+  // Settings.
+  Map<String, String>? _medicationDoses;
+  Map<String, String> get medicationDoses => _medicationDoses ?? const {};
+  bool hasMedicationDoses() => _medicationDoses != null;
+
+  // "dietTypeKeys" field. Document ids into the `diet_types` collection -
+  // the Interventions section under Settings.
+  List<String>? _dietTypeKeys;
+  List<String> get dietTypeKeys => _dietTypeKeys ?? const [];
+  bool hasDietTypeKeys() => _dietTypeKeys != null;
+
+  // "medicationStartedAt" field. Medication id -> the date the user set as
+  // when they started it, editable in Settings > Interventions - drives the
+  // Patterns > Interventions tab's before/after comparison.
+  Map<String, DateTime>? _medicationStartedAt;
+  Map<String, DateTime> get medicationStartedAt =>
+      _medicationStartedAt ?? const {};
+  bool hasMedicationStartedAt() => _medicationStartedAt != null;
+
+  // "dietStartedAt" field. Diet id -> the date the user set as when they
+  // started it, same purpose as medicationStartedAt.
+  Map<String, DateTime>? _dietStartedAt;
+  Map<String, DateTime> get dietStartedAt => _dietStartedAt ?? const {};
+  bool hasDietStartedAt() => _dietStartedAt != null;
+
+  // "healthDataResearchConsent" field. Whether the user has opted in to
+  // Apple Health / Health Connect samples being usable for research -
+  // stamped onto each `health_samples` doc at sync time, see
+  // HealthSyncService.
+  bool? _healthDataResearchConsent;
+  bool get healthDataResearchConsent => _healthDataResearchConsent ?? false;
+  bool hasHealthDataResearchConsent() => _healthDataResearchConsent != null;
+
   void _initializeFields() {
     _uid = snapshotData['uid'] as String?;
     _email = snapshotData['email'] as String?;
@@ -134,6 +170,17 @@ class UsersRecord extends FirestoreRecord {
         castToType<int>(snapshotData['milestoneCoinsClaimed']);
     _locationLabel = snapshotData['locationLabel'] as String?;
     _joinedStudyIds = getDataList(snapshotData['joinedStudyIds']);
+    _medicationDoses =
+        (snapshotData['medicationDoses'] as Map<String, dynamic>?)
+            ?.map((k, v) => MapEntry(k, v as String));
+    _dietTypeKeys = getDataList(snapshotData['dietTypeKeys']);
+    _medicationStartedAt =
+        (snapshotData['medicationStartedAt'] as Map<String, dynamic>?)
+            ?.map((k, v) => MapEntry(k, v as DateTime));
+    _dietStartedAt = (snapshotData['dietStartedAt'] as Map<String, dynamic>?)
+        ?.map((k, v) => MapEntry(k, v as DateTime));
+    _healthDataResearchConsent =
+        snapshotData['healthDataResearchConsent'] as bool?;
   }
 
   static CollectionReference get collection =>

@@ -66,6 +66,7 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
       }
       if (_model.todayDiaryEntry?.reference != null) {
         _model.currentDiaryEntryRef = _model.todayDiaryEntry?.reference;
+        _model.checkingTodayEntry = false;
         safeSetState(() {});
         return;
       }
@@ -106,6 +107,7 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
         ),
       }, diaryEntriesRecordReference);
       _model.currentDiaryEntryRef = _model.createdDiaryEntry?.reference;
+      _model.checkingTodayEntry = false;
       safeSetState(() {});
       // Action 6 - show next symptom
       await queryMetricsRecordOnce(
@@ -161,6 +163,22 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (_model.checkingTodayEntry) {
+      return Scaffold(
+        backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+        body: Center(
+          child: SizedBox(
+            width: 50.0,
+            height: 50.0,
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(
+                FlutterFlowTheme.of(context).primary,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return StreamBuilder<UsersRecord>(
       stream: UsersRecord.getDocument(currentUserReference!),
       builder: (context, userSnapshot) {
@@ -225,157 +243,44 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
           child: Scaffold(
             key: scaffoldKey,
             backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-            appBar: PreferredSize(
-              preferredSize: Size.fromHeight(24.0),
-              child: AppBar(
-                backgroundColor: Color(0xFF0D1E26),
-                automaticallyImplyLeading: false,
-                title: Text(
-                  'Daily Diary',
-                  style: FlutterFlowTheme.of(context).headlineMedium.override(
-                        font: GoogleFonts.interTight(
-                          fontWeight: FlutterFlowTheme.of(context)
-                              .headlineMedium
-                              .fontWeight,
-                          fontStyle: FlutterFlowTheme.of(context)
-                              .headlineMedium
-                              .fontStyle,
-                        ),
-                        color: Colors.white,
-                        fontSize: 22.0,
-                        letterSpacing: 0.0,
-                        fontWeight: FlutterFlowTheme.of(context)
-                            .headlineMedium
-                            .fontWeight,
-                        fontStyle: FlutterFlowTheme.of(context)
-                            .headlineMedium
-                            .fontStyle,
-                      ),
-                ),
-                actions: [],
-                centerTitle: false,
-                elevation: 2.0,
+            appBar: AppBar(
+              backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+              automaticallyImplyLeading: false,
+              toolbarHeight: 68.0,
+              title: const custom_widgets.AppSectionHeader(
+                title: 'Daily Diary',
+                subtitle: 'How are you feeling today?',
               ),
+              elevation: 0.0,
             ),
             body: SafeArea(
               top: true,
               child: Column(
                 mainAxisSize: MainAxisSize.max,
                 children: [
-                  Column(
-                    mainAxisSize: MainAxisSize.max,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: EdgeInsetsDirectional.fromSTEB(
-                            22.0, 22.0, 22.0, 0.0),
-                        child: AnimatedContainer(
-                          duration: Duration(milliseconds: 170),
-                          curve: Curves.bounceOut,
-                          decoration: BoxDecoration(
-                            color: Color(0xFF0D1E26),
-                            boxShadow: [
-                              BoxShadow(
-                                blurRadius: 6.0,
-                                color: Color(0xFF1F3A45),
-                                offset: Offset(
-                                  0.0,
-                                  2.0,
-                                ),
-                              )
-                            ],
-                            borderRadius: BorderRadius.circular(18.0),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.max,
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: EdgeInsets.all(6.0),
-                                child: Container(
-                                  decoration: BoxDecoration(),
-                                ),
-                              ),
-                              Padding(
-                                padding: EdgeInsetsDirectional.fromSTEB(
-                                    0.0, 10.0, 0.0, 0.0),
-                                child: Container(
-                                  width: 30.0,
-                                  height: 30.0,
-                                  clipBehavior: Clip.antiAlias,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Image.asset(
-                                    'assets/images/fingerprint_icon.png',
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
-                              Align(
-                                alignment: AlignmentDirectional(-1.0, 0.0),
-                                child: Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.max,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Align(
-                                        alignment:
-                                            AlignmentDirectional(-1.0, 0.0),
-                                        child: Text(
-                                          'How are you feeling today?',
-                                          style: FlutterFlowTheme.of(context)
-                                              .bodyMedium
-                                              .override(
-                                                font: GoogleFonts.inter(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontStyle:
-                                                      FlutterFlowTheme.of(
-                                                              context)
-                                                          .bodyMedium
-                                                          .fontStyle,
-                                                ),
-                                                letterSpacing: 0.0,
-                                                fontWeight: FontWeight.bold,
-                                                fontStyle:
-                                                    FlutterFlowTheme.of(context)
-                                                        .bodyMedium
-                                                        .fontStyle,
-                                              ),
-                                        ),
-                                      ),
-                                      Text(
-                                        'Select the intensity of your sensations',
-                                        style: FlutterFlowTheme.of(context)
-                                            .bodySmall
-                                            .override(
-                                              font: GoogleFonts.inter(
-                                                fontWeight: FontWeight.w300,
-                                                fontStyle:
-                                                    FlutterFlowTheme.of(context)
-                                                        .bodySmall
-                                                        .fontStyle,
-                                              ),
-                                              letterSpacing: 0.0,
-                                              fontWeight: FontWeight.w300,
-                                              fontStyle:
-                                                  FlutterFlowTheme.of(context)
-                                                      .bodySmall
-                                                      .fontStyle,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                  Padding(
+                    padding: EdgeInsetsDirectional.fromSTEB(22.0, 14.0, 22.0, 0.0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3.0),
+                      child: TweenAnimationBuilder<double>(
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeOut,
+                        tween: Tween<double>(
+                          end: dailyDiaryPageMetricsRecordList.isEmpty
+                              ? 0.0
+                              : (_model.currentQuestionIndex! /
+                                      dailyDiaryPageMetricsRecordList.length)
+                                  .clamp(0.0, 1.0),
+                        ),
+                        builder: (context, progress, _) => LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 5.0,
+                          backgroundColor: Color(0xFF1A2A33),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                              FlutterFlowTheme.of(context).primary),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                   Container(
                     height: MediaQuery.sizeOf(context).height * 0.07,
@@ -438,7 +343,9 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
                       ],
                     ),
                   ),
-                  Wrap(
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Wrap(
                     spacing: 0.0,
                     runSpacing: 0.0,
                     alignment: WrapAlignment.start,
@@ -450,7 +357,7 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
                     children: [
                       Padding(
                         padding: EdgeInsetsDirectional.fromSTEB(
-                            22.0, 20.0, 22.0, 22.0),
+                            22.0, 20.0, 22.0, 120.0),
                         child: Container(
                           decoration: BoxDecoration(
                             color: Color(0xFF0D1E26),
@@ -555,6 +462,8 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
                         ),
                       ),
                     ],
+                      ),
+                    ),
                   ),
                 ],
               ),

@@ -8,23 +8,24 @@ import 'package:google_fonts/google_fonts.dart';
 // The 4 compact headline metrics at the top of a Results period ("Average
 // intensity", "Spikes", "Crystal clear days", "Most common intensity") -
 // deliberately the most visually prominent thing on the Results tab, per the
-// "results should dominate the screen" priority. A 2x2 grid of bold numbers
-// reads as a dashboard headline; the discovery/insight cards below carry the
-// narrative detail.
+// "results should dominate the screen" priority. A single row of bold
+// numbers reads as a dashboard headline; the discovery/insight cards below
+// carry the narrative detail. `footer` is a variable-height slot below the
+// value - a delta indicator, a sparkle, or a colored ring - so all 4 tiles
+// keep the same rhythm whether or not a given metric has one (the row
+// stretches every tile to the tallest one via IntrinsicHeight).
 class HeadlineMetric {
   const HeadlineMetric({
     required this.label,
     required this.value,
-    required this.icon,
     required this.color,
-    this.sublabel,
+    this.footer,
   });
 
   final String label;
   final String value;
-  final String? sublabel;
-  final IconData icon;
   final Color color;
+  final Widget? footer;
 }
 
 class HeadlineMetricTiles extends StatelessWidget {
@@ -34,84 +35,143 @@ class HeadlineMetricTiles extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10.0,
-      crossAxisSpacing: 10.0,
-      childAspectRatio: 2.15,
-      children: metrics.map((m) => _tile(context, m)).toList(),
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < metrics.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8.0),
+            Expanded(child: _tile(context, metrics[i])),
+          ],
+        ],
+      ),
     );
   }
 
   Widget _tile(BuildContext context, HeadlineMetric m) {
     final theme = FlutterFlowTheme.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 10.0),
       decoration: BoxDecoration(
         color: theme.secondaryBackground,
-        borderRadius: BorderRadius.circular(18.0),
+        borderRadius: BorderRadius.circular(14.0),
         border: Border.all(color: m.color.withValues(alpha: 0.35), width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(5.0),
-                decoration: BoxDecoration(
-                  color: m.color.withValues(alpha: 0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(m.icon, size: 13.0, color: m.color),
-              ),
-              const SizedBox(width: 8.0),
-              Expanded(
-                child: Text(
-                  m.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.labelSmall.override(
-                    font: GoogleFonts.inter(),
-                    color: theme.secondaryText,
-                    fontSize: 11.0,
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            m.value,
+            style: TextStyle(
+              fontSize: 21.0,
+              fontWeight: FontWeight.w800,
+              color: theme.primaryText,
+            ),
           ),
-          const SizedBox(height: 6.0),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                m.value,
-                style: TextStyle(
-                  fontSize: 22.0,
-                  fontWeight: FontWeight.w800,
-                  color: theme.primaryText,
-                ),
-              ),
-              if (m.sublabel != null) ...[
-                const SizedBox(width: 5.0),
-                Flexible(
-                  child: Text(
-                    m.sublabel!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 11.0, color: theme.secondaryText),
-                  ),
-                ),
-              ],
-            ],
+          const SizedBox(height: 3.0),
+          Text(
+            m.label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.labelSmall.override(
+              font: GoogleFonts.inter(),
+              color: theme.secondaryText,
+              fontSize: 10.5,
+              lineHeight: 1.15,
+            ),
           ),
+          if (m.footer != null) ...[
+            const SizedBox(height: 6.0),
+            m.footer!,
+          ],
         ],
       ),
+    );
+  }
+}
+
+// A small "↓18% vs earlier" / "↑2 vs earlier" delta line for a headline
+// tile footer. `goodWhenDown` says which direction counts as improvement
+// for this metric (e.g. true for intensity/spikes, since lower is better).
+class HeadlineDelta extends StatelessWidget {
+  const HeadlineDelta({
+    super.key,
+    required this.isDown,
+    required this.magnitudeLabel,
+    required this.goodWhenDown,
+  });
+
+  final bool isDown;
+  final String magnitudeLabel;
+  final bool goodWhenDown;
+
+  static const _good = Color(0xFF4CAF6D);
+  static const _bad = Color(0xFFE5484D);
+
+  @override
+  Widget build(BuildContext context) {
+    final good = isDown == goodWhenDown;
+    final color = good ? _good : _bad;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${isDown ? '↓' : '↑'} $magnitudeLabel',
+          style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 11.0),
+        ),
+        const SizedBox(width: 4.0),
+        Flexible(
+          child: Text(
+            'vs earlier',
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: FlutterFlowTheme.of(context).secondaryText,
+              fontSize: 10.0,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// A small colored ring - used on the "Most common intensity" tile so the
+// category (crystal/mild/moderate/severe) reads at a glance from color
+// alone, same as the rainbow legend used elsewhere in the app.
+class HeadlineRing extends StatelessWidget {
+  const HeadlineRing({super.key, required this.color, this.label});
+
+  final Color color;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 14.0,
+          height: 14.0,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 2.5),
+          ),
+        ),
+        if (label != null) ...[
+          const SizedBox(width: 5.0),
+          Flexible(
+            child: Text(
+              label!,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: FlutterFlowTheme.of(context).secondaryText,
+                fontSize: 10.0,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

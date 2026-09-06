@@ -18,7 +18,12 @@ class FFAppState extends ChangeNotifier {
     _instance = FFAppState._internal();
   }
 
-  Future initializePersistedState() async {}
+  static const _healthSyncEnabledPrefsKey = 'ff_healthSyncEnabled';
+
+  Future initializePersistedState() async {
+    final prefs = await SharedPreferences.getInstance();
+    _healthSyncEnabled = prefs.getBool(_healthSyncEnabledPrefsKey) ?? false;
+  }
 
   void update(VoidCallback callback) {
     callback();
@@ -55,5 +60,16 @@ class FFAppState extends ChangeNotifier {
   DateTime? get selectedTime => _selectedTime;
   set selectedTime(DateTime? value) {
     _selectedTime = value;
+  }
+
+  /// Whether the user has turned on Apple Health / Health Connect sync in
+  /// Settings. Persisted (unlike the fields above) since it gates whether
+  /// HealthSyncService is invoked on app resume.
+  bool _healthSyncEnabled = false;
+  bool get healthSyncEnabled => _healthSyncEnabled;
+  set healthSyncEnabled(bool value) {
+    _healthSyncEnabled = value;
+    SharedPreferences.getInstance()
+        .then((prefs) => prefs.setBool(_healthSyncEnabledPrefsKey, value));
   }
 }

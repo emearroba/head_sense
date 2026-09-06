@@ -4,6 +4,10 @@ service cloud.firestore {
     match /diary_todo/{document} {
       allow create: if request.resource.data.user_name == /databases/$(database)/documents/users/$(request.auth.uid);
       allow read: if request.auth.uid == resource.data.uid;
+      // Same `write` vs `update` gap as diary_entries/responses below -
+      // marking a todo "Done" (diary_todo_list_widget.dart) is an update on
+      // this doc and was silently permission-denied without this.
+      allow update: if request.auth.uid == resource.data.uid;
       allow write: if false;
       allow delete: if false;
     }
@@ -11,6 +15,12 @@ service cloud.firestore {
     match /diary_entries/{document} {
       allow create: if request.resource.data.userRef == /databases/$(database)/documents/users/$(request.auth.uid);
       allow read: if resource.data.userRef == /databases/$(database)/documents/users/$(request.auth.uid);
+      // Same gap as diary_entries/{parent}/responses/{document} above:
+      // `write` doesn't cover update unless granted separately, and marking
+      // the entry complete (daily_diary_page_widget.dart's onSubmit, once
+      // the last question is answered) is an update on this doc - without
+      // this it hits permission-denied and the diary gets stuck at the end.
+      allow update: if resource.data.userRef == /databases/$(database)/documents/users/$(request.auth.uid);
       allow write: if false;
       allow delete: if false;
     }
@@ -22,9 +32,30 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /medications/{document} {
+      allow create: if true;
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /diet_types/{document} {
+      allow create: if true;
+      allow read: if true;
+      allow write: if false;
+      allow delete: if false;
+    }
+
     match /diary_entries/{parent}/responses/{document} {
       allow create: if true;
       allow read: if true;
+      // `write` only covers create/delete unless `update` is granted too -
+      // without this, re-answering a question (MetricAnswerInput's onSubmit
+      // does .set() on an id keyed by metricKey, so re-tapping the same
+      // question is an update, not a create) hits permission-denied and
+      // gets the diary stuck on that question forever (see
+      // metric_answer_input.dart's _handleScaleTap/_handleSubmit).
+      allow update: if true;
       allow write: if false;
       allow delete: if false;
     }
@@ -51,7 +82,12 @@ service cloud.firestore {
     match /users/{document} {
       allow create: if true;
       allow read: if true;
-      allow write: if false;
+      // User doc IDs are the Firebase Auth uid (see backend.dart), so this
+      // only lets a user update their own profile - covers the settings
+      // toggles (tracked variables, location, joined studies) and the
+      // Interventions section (medication doses/diets + their start dates),
+      // all of which write via `currentUserReference!.update(...)`.
+      allow update: if request.auth != null && request.auth.uid == document;
       allow delete: if false;
     }
 
@@ -75,6 +111,17 @@ service cloud.firestore {
 
 
     match /users/{parent}/reminders/{document} {
+      allow create: if request.auth.uid == parent;
+      allow read: if request.auth.uid == parent;
+      allow write: if request.auth.uid == parent;
+      allow delete: if request.auth.uid == parent;
+    }
+
+    // Raw Apple Health / Google Health Connect samples - sensitive, so
+    // unlike most other collections above this is NOT world-readable, only
+    // the owning user (and the aggregate_health_samples cloud function,
+    // which uses the Admin SDK and bypasses these rules) can access it.
+    match /users/{parent}/health_samples/{document} {
       allow create: if request.auth.uid == parent;
       allow read: if request.auth.uid == parent;
       allow write: if request.auth.uid == parent;

@@ -368,13 +368,14 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
                             style: theme.headlineMedium.override(
                               font: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
                               color: Colors.white,
+                              fontSize: 32.0,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.0,
                             ),
                           ),
                           const SizedBox(height: 4.0),
                           Text(
-                            'Understand your patterns.',
+                            'Listen to your body',
                             textAlign: TextAlign.center,
                             style: theme.bodyMedium.override(
                               font: GoogleFonts.plusJakartaSans(),
@@ -545,7 +546,7 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
         Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(0.0, 4.0, 0.0, 24.0),
           child: Text(
-            'Sign in to continue to your account.',
+            'Sign in to continue logging your symptoms',
             textAlign: TextAlign.start,
             style: theme.labelMedium.override(
               font: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w500),

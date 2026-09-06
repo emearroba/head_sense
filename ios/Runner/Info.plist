@@ -56,6 +56,8 @@
 
 	<key>NSLocationWhenInUseUsageDescription</key>
     <string>Allow your current location</string>
+	<key>NSHealthShareUsageDescription</key>
+    <string>HeadSense reads your sleep, steps and heart rate to help find patterns with your headaches</string>
 	<key>PermissionGroupNotification</key>
     <string>Allow notifications</string>
     <key>UIBackgroundModes</key>

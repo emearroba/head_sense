@@ -112,7 +112,57 @@ bool isResponseMetric(String metricKey) => metricKey == 'analgesia';
   );
 }
 
+/// Same-day Pearson correlation between two tracked metrics, over the days
+/// both have a tracked entry for. Returns null when fewer than
+/// [minSampleDays] days overlap. Unlike [buildSymptomConnection] (which
+/// searches lagged offsets for one anchor at a time and only returns a
+/// result once |r| >= 0.3), this always returns the raw same-day r whenever
+/// there's enough data - used by the Connections tab's correlation matrix,
+/// where every pair needs one directly-comparable, symmetric number.
+double? sameDayCorrelation(
+  DashboardRecord a,
+  DashboardRecord b, {
+  int minSampleDays = 8,
+}) {
+  final aByDate = <String, double>{
+    for (final d in a.dailyValues.where((d) => d.isTracked)) d.date: d.value,
+  };
+  final bByDate = <String, double>{
+    for (final d in b.dailyValues.where((d) => d.isTracked)) d.date: d.value,
+  };
+  final xs = <double>[];
+  final ys = <double>[];
+  aByDate.forEach((date, value) {
+    final otherValue = bByDate[date];
+    if (otherValue != null) {
+      xs.add(value);
+      ys.add(otherValue);
+    }
+  });
+  if (xs.length < minSampleDays) return null;
+  return pearsonCorrelation(xs, ys);
+}
+
+// A pill label + color per correlation-strength tier - thresholds line up
+// with the example set the Connections tab's design was modeled on (72% ->
+// Strong, 48% -> Moderate, 31% -> Possible), and 30% is the effective floor
+// since buildSymptomConnection only returns a connection once |r| >= 0.3.
+// Shared by the Connections tab and the Overview tab's "strongest
+// connections" mini-list so both use identical tiering/colors.
+({String label, Color color}) connectionStrengthTier(int pct) {
+  if (pct >= 60) return (label: 'Strong', color: const Color(0xFF4CAF6D));
+  if (pct >= 40) return (label: 'Moderate', color: const Color(0xFFFFC533));
+  return (label: 'Possible', color: kCrystalBlue);
+}
+
 enum ConnectionKind { risk, protective, precursor, response }
+
+// Which side of the anchor day the "other" metric's strongest lag falls on -
+// the literal axis the Connections tab's Before/Same day/After/All filter
+// chips filter on. Independent of ConnectionKind (a precursor connection is
+// always `before`/`after`, but a same-day risk/protective/response
+// connection is always `sameDay`).
+enum ConnectionTiming { before, sameDay, after }
 
 // A discovered (or absent) relationship between two tracked symptoms, built
 // around a fixed "anchor" metric (e.g. headache) vs. an "other" one (e.g.
@@ -136,6 +186,9 @@ class SymptomConnection {
     required this.groupBLabel,
     required this.groupBValue,
     required this.highlightA,
+    required this.timingBucket,
+    required this.timingLabel,
+    required this.lagDays,
   });
 
   final ConnectionKind kind;
@@ -152,6 +205,13 @@ class SymptomConnection {
   final String groupBLabel;
   final double groupBValue;
   final bool highlightA;
+  // Before/same day/after classification for the Connections tab's filter
+  // chips, plus the raw signed lag (days the "other" metric leads the
+  // anchor by; negative means it lags behind) the connection-detail Timeline
+  // view anchors its -3d..+3d window's marker on.
+  final ConnectionTiming timingBucket;
+  final String timingLabel;
+  final int lagDays;
 
   double get overlapPct => totalDays == 0 ? 0.0 : overlapDays / totalDays * 100.0;
 }
@@ -205,6 +265,19 @@ SymptomConnection? buildSymptomConnection(
   }
   if (best == null) return null;
 
+  // Boolean metrics in this app's catalog are always phrased as yes/no
+  // questions ("Ate a late meal?", "On your period?", "Did cardio today?" -
+  // see seed_metrics.js's boolean() entries), unlike scale/numeric metrics
+  // which are plain noun phrases ("Alcoholic drinks", "Bowel urgency"). A
+  // question can't be dropped into a sentence the same way a noun phrase
+  // can ("on days with on your period?" reads as nonsense), so anywhere a
+  // boolean's label gets embedded mid-sentence below, it's quoted as an
+  // answered question instead, with any trailing "?" stripped first so it
+  // doesn't collide with the sentence's own punctuation.
+  final otherLabelClean = other.metricLabel.endsWith('?')
+      ? other.metricLabel.substring(0, other.metricLabel.length - 1).trim()
+      : other.metricLabel;
+
   final isBoolean = best.xs.every((v) => v == 0.0 || v == 1.0);
   double groupAValue, groupBValue;
   String groupALabel, groupBLabel, thresholdNote;
@@ -217,8 +290,8 @@ SymptomConnection? buildSymptomConnection(
     if (yesYs.isEmpty || noYs.isEmpty) return null;
     groupAValue = yesYs.reduce((a, b) => a + b) / yesYs.length;
     groupBValue = noYs.reduce((a, b) => a + b) / noYs.length;
-    groupALabel = '${other.metricLabel}: yes';
-    groupBLabel = '${other.metricLabel}: no';
+    groupALabel = '$otherLabelClean: yes';
+    groupBLabel = '$otherLabelClean: no';
     thresholdNote = '';
   } else {
     final sortedXs = [...best.xs]..sort();
@@ -239,12 +312,16 @@ SymptomConnection? buildSymptomConnection(
   final delta = groupAValue - groupBValue;
   final higher = delta > 0;
   final String timing;
+  final ConnectionTiming timingBucket;
   if (best.lagDays == 0) {
     timing = 'on the same day';
+    timingBucket = ConnectionTiming.sameDay;
   } else if (best.lagDays > 0) {
     timing = '${best.lagDays} day${best.lagDays == 1 ? '' : 's'} before';
+    timingBucket = ConnectionTiming.before;
   } else {
     timing = '${-best.lagDays} day${-best.lagDays == 1 ? '' : 's'} after';
+    timingBucket = ConnectionTiming.after;
   }
 
   final anchorLower = anchor.metricLabel.toLowerCase();
@@ -253,6 +330,18 @@ SymptomConnection? buildSymptomConnection(
   final qualifier = effectSize > 0.5 ? ' much' : '';
   final isResponse =
       isResponseMetric(other.metricKey) && best.lagDays == 0 && higher;
+
+  // The clause that follows "Your <anchor> is worse/better ___" - a plain
+  // noun phrase for scale/numeric metrics, or a quoted answered-question for
+  // booleans, so both read as a real sentence regardless of which kind of
+  // metric was picked.
+  final otherCondition = isBoolean
+      ? 'on days you answered "yes" to "$otherLabelClean"'
+      : 'when $otherLower is higher';
+  // Same idea, but in subject position (used by the precursor title, which
+  // leads with the "other" metric rather than the anchor).
+  final otherSubject =
+      isBoolean ? 'Answering "yes" to "$otherLabelClean"' : other.metricLabel;
 
   final ConnectionKind kind;
   final IconData icon;
@@ -270,36 +359,37 @@ SymptomConnection? buildSymptomConnection(
   } else if (best.lagDays != 0) {
     kind = ConnectionKind.precursor;
     icon = Icons.history_rounded;
-    title = '${other.metricLabel} often shows up $timing your $anchorLower';
+    title = '$otherSubject often shows up $timing your $anchorLower';
     why = 'Some effects take a day or two to build up before symptoms show '
         '— sleep and stress are common examples. That\'s why we also check '
         'a few days before and after, not just the same day.';
   } else if (higher) {
     kind = ConnectionKind.risk;
     icon = Icons.hub_rounded;
-    title = isBoolean
-        ? 'Your $anchorLower is$qualifier worse on days with $otherLower'
-        : 'Your $anchorLower is$qualifier worse when $otherLower is higher';
-    why = 'This kind of link between ${other.metricLabel} and '
-        '${anchor.metricLabel} is common — many symptoms are sensitive to '
+    title = 'Your $anchorLower is$qualifier worse $otherCondition';
+    why = 'This kind of link between "$otherLabelClean" and '
+        '"${anchor.metricLabel}" is common — many symptoms are sensitive to '
         'daily habits. It doesn\'t prove one causes the other, but it\'s a '
         'good place to pay closer attention.';
   } else {
     kind = ConnectionKind.protective;
     icon = Icons.shield_outlined;
-    title = isBoolean
-        ? 'Your $anchorLower is$qualifier better on days with $otherLower'
-        : 'Your $anchorLower is$qualifier better when $otherLower is higher';
+    title = 'Your $anchorLower is$qualifier better $otherCondition';
+    // Deliberately doesn't tell the user to do more of whatever "other" is -
+    // for a habit like alcohol that reads as reckless advice, and for a
+    // symptom like bowel urgency "do more of it" doesn't even make sense.
+    // Just names the pattern and defers any action to their doctor.
     why = 'Whatever is behind this — routine, timing, or something else '
-        'entirely — it lines up with your better days. It can be worth '
-        'doing more of, even before you know exactly why it helps.';
+        'entirely — it lines up with your better days. Correlation isn\'t '
+        'causation, so it\'s worth mentioning to your doctor rather than '
+        'changing anything based on this alone.';
   }
 
   return SymptomConnection(
     kind: kind,
     icon: icon,
     title: title,
-    detail: '${other.metricLabel}$thresholdNote $timing: '
+    detail: '$otherLabelClean$thresholdNote $timing: '
         '${anchor.metricLabel} averages ${groupAValue.toStringAsFixed(1)} vs '
         '${groupBValue.toStringAsFixed(1)}.',
     why: why,
@@ -312,5 +402,28 @@ SymptomConnection? buildSymptomConnection(
     groupBLabel: groupBLabel,
     groupBValue: groupBValue,
     highlightA: higher,
+    timingBucket: timingBucket,
+    timingLabel: timing,
+    lagDays: best.lagDays,
   );
+}
+
+/// Runs [buildSymptomConnection] for [anchor] against every other tracked
+/// metric in [allTracked], keeping only the ones that clear the existing
+/// |r| >= 0.3 bar, sorted strongest-first. This is the "Somatica just tells
+/// you" auto-ranked list - both the Overview tab's "strongest connections"
+/// mini-list and the Connections tab's default (non-"Advanced") view call
+/// this one function so they can never drift apart.
+List<(DashboardRecord, SymptomConnection)> rankedConnections(
+  DashboardRecord anchor,
+  List<DashboardRecord> allTracked,
+) {
+  final pairs = <(DashboardRecord, SymptomConnection)>[];
+  for (final other in allTracked) {
+    if (other.metricKey == anchor.metricKey) continue;
+    final connection = buildSymptomConnection(anchor, other);
+    if (connection != null) pairs.add((other, connection));
+  }
+  pairs.sort((a, b) => b.$2.strengthPct.compareTo(a.$2.strengthPct));
+  return pairs;
 }

@@ -14,7 +14,10 @@ import 'schema/studies_record.dart';
 import 'schema/users_record.dart';
 import 'schema/dashboard_record.dart';
 import 'schema/daily_values_record.dart';
+import 'schema/health_samples_record.dart';
 import 'schema/reminders_record.dart';
+import 'schema/medications_record.dart';
+import 'schema/diet_types_record.dart';
 
 export 'dart:async' show StreamSubscription;
 export 'package:cloud_firestore/cloud_firestore.dart' hide Order;
@@ -32,7 +35,10 @@ export 'schema/studies_record.dart';
 export 'schema/users_record.dart';
 export 'schema/dashboard_record.dart';
 export 'schema/daily_values_record.dart';
+export 'schema/health_samples_record.dart';
 export 'schema/reminders_record.dart';
+export 'schema/medications_record.dart';
+export 'schema/diet_types_record.dart';
 
 /// Functions to query DiaryTodoRecords (as a Stream and as a Future).
 Future<int> queryDiaryTodoRecordCount({
@@ -413,6 +419,46 @@ Future<List<RemindersRecord>> queryRemindersRecordOnce({
       singleRecord: singleRecord,
     );
 
+/// Functions to query HealthSamplesRecords (as a Stream and as a Future).
+Future<int> queryHealthSamplesRecordCount({
+  DocumentReference? parent,
+  Query Function(Query)? queryBuilder,
+  int limit = -1,
+}) =>
+    queryCollectionCount(
+      HealthSamplesRecord.collection(parent),
+      queryBuilder: queryBuilder,
+      limit: limit,
+    );
+
+Stream<List<HealthSamplesRecord>> queryHealthSamplesRecord({
+  DocumentReference? parent,
+  Query Function(Query)? queryBuilder,
+  int limit = -1,
+  bool singleRecord = false,
+}) =>
+    queryCollection(
+      HealthSamplesRecord.collection(parent),
+      HealthSamplesRecord.fromSnapshot,
+      queryBuilder: queryBuilder,
+      limit: limit,
+      singleRecord: singleRecord,
+    );
+
+Future<List<HealthSamplesRecord>> queryHealthSamplesRecordOnce({
+  DocumentReference? parent,
+  Query Function(Query)? queryBuilder,
+  int limit = -1,
+  bool singleRecord = false,
+}) =>
+    queryCollectionOnce(
+      HealthSamplesRecord.collection(parent),
+      HealthSamplesRecord.fromSnapshot,
+      queryBuilder: queryBuilder,
+      limit: limit,
+      singleRecord: singleRecord,
+    );
+
 Future<int> queryCollectionCount(
   Query collection, {
   Query Function(Query)? queryBuilder,
@@ -577,3 +623,77 @@ Future updateUserDocument({String? email}) async {
   await currentUserDocument?.reference
       .update(createUsersRecordData(email: email));
 }
+
+/// Functions to query MedicationsRecords (as a Stream and as a Future).
+Future<int> queryMedicationsRecordCount({
+  Query Function(Query)? queryBuilder,
+  int limit = -1,
+}) =>
+    queryCollectionCount(
+      MedicationsRecord.collection,
+      queryBuilder: queryBuilder,
+      limit: limit,
+    );
+
+Stream<List<MedicationsRecord>> queryMedicationsRecord({
+  Query Function(Query)? queryBuilder,
+  int limit = -1,
+  bool singleRecord = false,
+}) =>
+    queryCollection(
+      MedicationsRecord.collection,
+      MedicationsRecord.fromSnapshot,
+      queryBuilder: queryBuilder,
+      limit: limit,
+      singleRecord: singleRecord,
+    );
+
+Future<List<MedicationsRecord>> queryMedicationsRecordOnce({
+  Query Function(Query)? queryBuilder,
+  int limit = -1,
+  bool singleRecord = false,
+}) =>
+    queryCollectionOnce(
+      MedicationsRecord.collection,
+      MedicationsRecord.fromSnapshot,
+      queryBuilder: queryBuilder,
+      limit: limit,
+      singleRecord: singleRecord,
+    );
+
+/// Functions to query DietTypesRecords (as a Stream and as a Future).
+Future<int> queryDietTypesRecordCount({
+  Query Function(Query)? queryBuilder,
+  int limit = -1,
+}) =>
+    queryCollectionCount(
+      DietTypesRecord.collection,
+      queryBuilder: queryBuilder,
+      limit: limit,
+    );
+
+Stream<List<DietTypesRecord>> queryDietTypesRecord({
+  Query Function(Query)? queryBuilder,
+  int limit = -1,
+  bool singleRecord = false,
+}) =>
+    queryCollection(
+      DietTypesRecord.collection,
+      DietTypesRecord.fromSnapshot,
+      queryBuilder: queryBuilder,
+      limit: limit,
+      singleRecord: singleRecord,
+    );
+
+Future<List<DietTypesRecord>> queryDietTypesRecordOnce({
+  Query Function(Query)? queryBuilder,
+  int limit = -1,
+  bool singleRecord = false,
+}) =>
+    queryCollectionOnce(
+      DietTypesRecord.collection,
+      DietTypesRecord.fromSnapshot,
+      queryBuilder: queryBuilder,
+      limit: limit,
+      singleRecord: singleRecord,
+    );

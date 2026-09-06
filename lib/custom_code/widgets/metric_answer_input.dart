@@ -49,6 +49,10 @@ class MetricAnswerInput extends StatefulWidget {
 class _MetricAnswerInputState extends State<MetricAnswerInput> {
   bool _submitting = false;
   double? _numericValue;
+  // The value the user just tapped in the scale list, kept selected/lit up
+  // for a beat before onSubmit fires, so the tap always reads as "confirmed,
+  // moving to the next symptom" rather than an instant, jarring swap.
+  double? _pendingScaleValue;
 
   // Index 0 = highest value (10), matching the original hand-tuned palette.
   static const _scaleLabels = [
@@ -62,27 +66,71 @@ class _MetricAnswerInputState extends State<MetricAnswerInput> {
     'Low',
     'Very Low',
     'Minimal',
-    'Not present',
+    'Crystal clear',
   ];
-  static const _scaleColors = [
-    Color(0xFFD64541),
-    Color(0xFFE16235),
-    Color(0xFFE67532),
-    Color(0xFFDD9433),
-    Color(0xFFD2B03A),
-    Color(0xFFAEB94A),
-    Color(0xFF76B759),
-    Color(0xFF59BE73),
-    Color(0xFF42C29B),
-    Color(0xFF36C9BB),
-    Color(0xFF32D6D3),
-  ];
+
+  // Same four semantic anchors as the Dashboard's intensity legend
+  // (Severe / Moderate / Mild / Crystal clear), interpolated across the
+  // scale so every intensity screen in the app reads as one palette.
+  static const _severeRed = Color(0xFFBD3A31);
+  static const _moderateTan = Color(0xFFCB9A61);
+  static const _mildGreen = Color(0xFF7ABA5A);
+  static const _crystalBlue = Color(0xFFAEE0EA);
+
+  // t: 0 = highest intensity -> 1 = lowest ("Crystal clear").
+  static Color _colorForT(double t) {
+    if (t <= 1 / 3) return Color.lerp(_severeRed, _moderateTan, t / (1 / 3))!;
+    if (t <= 2 / 3) {
+      return Color.lerp(_moderateTan, _mildGreen, (t - 1 / 3) / (1 / 3))!;
+    }
+    return Color.lerp(_mildGreen, _crystalBlue, (t - 2 / 3) / (1 / 3))!;
+  }
 
   Future<void> _handleSubmit(double value) async {
     if (_submitting) return;
     setState(() => _submitting = true);
-    await widget.onSubmit(value);
-    if (mounted) setState(() => _submitting = false);
+    try {
+      await widget.onSubmit(value);
+    } catch (e) {
+      _showSubmitError();
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  // Scale rows get a beat of "lit up + checked" feedback before advancing,
+  // instead of submitting (and swapping the whole question out) instantly.
+  Future<void> _handleScaleTap(double value) async {
+    if (_submitting) return;
+    setState(() {
+      _pendingScaleValue = value;
+      _submitting = true;
+    });
+    try {
+      await Future.delayed(const Duration(milliseconds: 260));
+      await widget.onSubmit(value);
+    } catch (e) {
+      _showSubmitError();
+    } finally {
+      // Without this in a `finally`, any error from onSubmit (e.g. a
+      // permission-denied re-answering a question) left the row stuck
+      // showing "confirming" forever with no way to retry.
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _pendingScaleValue = null;
+        });
+      }
+    }
+  }
+
+  void _showSubmitError() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Couldn't save your answer. Please try again."),
+      ),
+    );
   }
 
   @override
@@ -253,6 +301,7 @@ class _MetricAnswerInputState extends State<MetricAnswerInput> {
   };
 
   Widget _buildScale(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
     final levels = widget.scaleMax - widget.scaleMin + 1;
     final useNamedPalette = widget.scaleMin == 0 && widget.scaleMax == 10;
     final isBristol = widget.metricKey == 'stool_quality';
@@ -260,57 +309,213 @@ class _MetricAnswerInputState extends State<MetricAnswerInput> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(levels, (i) {
-        final value = widget.scaleMax - i; // descending, matches original UX
-        final label =
-            useNamedPalette ? _scaleLabels[i] : '$value';
-        final color = useNamedPalette
-            ? _scaleColors[i]
-            : Color.lerp(
-                const Color(0xFF32D6D3),
-                const Color(0xFFD64541),
-                levels <= 1 ? 0 : i / (levels - 1),
-              )!;
-        final isSelected = widget.initialValue == value.toDouble();
+        final value = widget.scaleMax - i; // descending: 10 at top, 0 at bottom
+        final t = levels <= 1 ? 0.0 : i / (levels - 1);
+        final label = useNamedPalette ? _scaleLabels[i] : '$value';
+        final color = _colorForT(t);
+        final isConfirming = _pendingScaleValue == value.toDouble();
+        final isSelected = _pendingScaleValue != null
+            ? isConfirming
+            : widget.initialValue == value.toDouble();
+
         return Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: ElevatedButton(
-            onPressed: _submitting ? null : () => _handleSubmit(value.toDouble()),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 44),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: isSelected
-                    ? const BorderSide(color: Colors.white, width: 2)
-                    : BorderSide.none,
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isBristol && _bristolIcons.containsKey(value)) ...[
-                      Text(_bristolIcons[value]!,
-                          style: const TextStyle(fontSize: 18)),
-                      const SizedBox(width: 8),
-                    ],
-                    Text(label,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-                Text('$value',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _IntensityRow(
+            theme: theme,
+            value: value,
+            label: label,
+            color: color,
+            isSelected: isSelected,
+            isConfirming: isConfirming,
+            enabled: !_submitting,
+            leading: (isBristol && _bristolIcons.containsKey(value))
+                ? Text(_bristolIcons[value]!, style: const TextStyle(fontSize: 16))
+                : null,
+            onTap: () => _handleScaleTap(value.toDouble()),
           ),
         );
       }),
+    );
+  }
+}
+
+// A single intensity row: presses down slightly on touch (like an iOS
+// button), ripples a soft "bubble" of its own color from the tap point, and
+// lights up its background/border/glow when selected - with a brief
+// checkmark swap while a tap is being confirmed, so it's unmistakable the
+// app registered the answer and is moving to the next symptom.
+class _IntensityRow extends StatefulWidget {
+  const _IntensityRow({
+    required this.theme,
+    required this.value,
+    required this.label,
+    required this.color,
+    required this.isSelected,
+    required this.isConfirming,
+    required this.enabled,
+    required this.onTap,
+    this.leading,
+  });
+
+  final FlutterFlowTheme theme;
+  final int value;
+  final String label;
+  final Color color;
+  final bool isSelected;
+  final bool isConfirming;
+  final bool enabled;
+  final VoidCallback onTap;
+  final Widget? leading;
+
+  @override
+  State<_IntensityRow> createState() => _IntensityRowState();
+}
+
+class _IntensityRowState extends State<_IntensityRow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pressController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 110),
+  );
+
+  @override
+  void dispose() {
+    _pressController.dispose();
+    super.dispose();
+  }
+
+  void _setPressed(bool pressed) {
+    if (!widget.enabled) return;
+    if (pressed) {
+      _pressController.forward();
+    } else {
+      _pressController.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final color = widget.color;
+    final isSelected = widget.isSelected;
+
+    return AnimatedBuilder(
+      animation: _pressController,
+      builder: (context, child) => Transform.scale(
+        scale: 1.0 - (_pressController.value * 0.03),
+        child: child,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: widget.enabled ? widget.onTap : null,
+          onTapDown: (_) => _setPressed(true),
+          onTapCancel: () => _setPressed(false),
+          onTapUp: (_) => _setPressed(false),
+          splashColor: color.withOpacity(0.30),
+          highlightColor: color.withOpacity(0.12),
+          splashFactory: InkRipple.splashFactory,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? color.withOpacity(widget.isConfirming ? 0.22 : 0.14)
+                  : theme.secondaryBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected ? color.withOpacity(0.8) : theme.alternate,
+                width: isSelected ? 1.5 : 1.0,
+              ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: color.withOpacity(widget.isConfirming ? 0.4 : 0.22),
+                        blurRadius: widget.isConfirming ? 18 : 12,
+                        spreadRadius: widget.isConfirming ? 1 : 0,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 4,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 24,
+                  child: Text(
+                    '${widget.value}',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (widget.leading != null) ...[
+                  widget.leading!,
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    style: TextStyle(
+                      color: theme.primaryText,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected ? color : Colors.transparent,
+                    border: Border.all(
+                      color: isSelected
+                          ? color
+                          : theme.secondaryText.withOpacity(0.4),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 150),
+                    child: widget.isConfirming
+                        ? const Icon(Icons.check,
+                            key: ValueKey('check'), size: 13, color: Colors.white)
+                        : (isSelected
+                            ? Center(
+                                key: const ValueKey('dot'),
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(key: ValueKey('empty'))),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

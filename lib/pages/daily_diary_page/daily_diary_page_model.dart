@@ -20,6 +20,11 @@ class DailyDiaryPageModel extends FlutterFlowModel<DailyDiaryPageWidget> {
 
   DocumentReference? currentDiaryEntryRef;
 
+  // True until the initState lookup of today's diary entry resolves.
+  // Keeps the questionnaire from flashing on screen for a frame before a
+  // redirect to the "already completed" page kicks in.
+  bool checkingTodayEntry = true;
+
   // Answers given so far this session, keyed by metricKey, so the "back"
   // button can show what was previously entered for a question.
   final Map<String, double> localAnswers = {};

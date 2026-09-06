@@ -23,6 +23,7 @@ class IntensityDistributionChart extends StatelessWidget {
     final theme = FlutterFlowTheme.of(context);
     final maxCount =
         histogram.values.fold<int>(0, (best, v) => v > best ? v : best);
+    final totalCount = histogram.values.fold<int>(0, (a, b) => a + b);
     final safeMax = maxCount <= 0 ? 1 : maxCount;
     final maxBarHeight = height - 34.0;
 
@@ -47,6 +48,7 @@ class IntensityDistributionChart extends StatelessWidget {
           final color = intensityColorForValue(value.toDouble());
           final barHeight =
               count == 0 ? 2.0 : (count / safeMax) * maxBarHeight;
+          final pct = totalCount == 0 ? 0 : (count / totalCount * 100).round();
           return Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2.0),
@@ -59,7 +61,7 @@ class IntensityDistributionChart extends StatelessWidget {
                     child: count > 0
                         ? Center(
                             child: Text(
-                              '$count',
+                              '$pct%',
                               style: TextStyle(
                                 fontSize: 9.0,
                                 fontWeight: FontWeight.w700,

@@ -171,6 +171,16 @@ class DashboardRecord extends FirestoreRecord {
   bool get analysisEligible => _analysisEligible ?? false;
   bool hasAnalysisEligible() => _analysisEligible != null;
 
+  // "daysTracked" field.
+  int? _daysTracked;
+  int get daysTracked => _daysTracked ?? 0;
+  bool hasDaysTracked() => _daysTracked != null;
+
+  // "currentDiaryStreak" field.
+  int? _currentDiaryStreak;
+  int get currentDiaryStreak => _currentDiaryStreak ?? 0;
+  bool hasCurrentDiaryStreak() => _currentDiaryStreak != null;
+
   void _initializeFields() {
     _userRef = snapshotData['userRef'] as DocumentReference?;
     _metricRef = snapshotData['metricRef'] as DocumentReference?;
@@ -211,6 +221,8 @@ class DashboardRecord extends FirestoreRecord {
         castToType<int>(snapshotData['currentMissingStreak']);
     _periodHasEnoughData = snapshotData['periodHasEnoughData'] as bool?;
     _analysisEligible = snapshotData['analysisEligible'] as bool?;
+    _daysTracked = castToType<int>(snapshotData['daysTracked']);
+    _currentDiaryStreak = castToType<int>(snapshotData['currentDiaryStreak']);
   }
 
   static CollectionReference get collection =>

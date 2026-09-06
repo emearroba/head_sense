@@ -10,6 +10,8 @@ export '/pages/diary_todo_list/diary_todo_list_widget.dart'
 export '/pages/track_variables/track_variables_widget.dart'
     show TrackVariablesWidget;
 export '/pages/settings/settings_widget.dart' show SettingsWidget;
+export '/pages/interventions/interventions_widget.dart'
+    show InterventionsWidget;
 export '/pages/results/results_widget.dart' show ResultsWidget;
 export '/pages/onboarding_goals/onboarding_goals_widget.dart'
     show OnboardingGoalsWidget;

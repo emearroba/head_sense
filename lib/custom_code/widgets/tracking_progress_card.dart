@@ -122,7 +122,7 @@ class _TrackingProgressCardState extends State<TrackingProgressCard> {
                     child: Text(
                       isSubscribed
                           ? 'Preview: your $streak-day streak is a strong '
-                              'signal for reliable patterns. Open Patterns '
+                              'signal for reliable patterns. Open Insights '
                               'to see the full report.'
                           : 'Subscribe to unlock this cycle\'s Pattern '
                               'Analysis report and see what your data shows.',
@@ -184,7 +184,6 @@ class _TrackingProgressCardState extends State<TrackingProgressCard> {
                 .toList()
               ..sort();
             final totalDays = dateKeys.length;
-            final capped = totalDays.clamp(0, 100);
             final streak = custom_functions.calculateLoggingStreak(dateKeys);
             final daysToInsights = totalDays < 30
                 ? 30 - totalDays
@@ -194,120 +193,67 @@ class _TrackingProgressCardState extends State<TrackingProgressCard> {
               _maybeAwardMilestone(user, totalDays, streak);
             });
 
-            return Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: FlutterFlowTheme.of(context).secondaryBackground,
-                borderRadius: BorderRadius.circular(16.0),
-                border: Border.all(
-                  color: FlutterFlowTheme.of(context).alternate,
-                  width: 1.0,
+            final theme = FlutterFlowTheme.of(context);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 2.0),
+                  decoration: BoxDecoration(
+                    color: theme.secondaryBackground,
+                    borderRadius: BorderRadius.circular(16.0),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _miniStat(
+                          context,
+                          Icons.local_fire_department,
+                          const Color(0xFFE67532),
+                          '$streak',
+                          'day streak',
+                        ),
+                      ),
+                      Expanded(
+                        child: _miniStat(
+                          context,
+                          Icons.calendar_today,
+                          theme.primary,
+                          '$totalDays',
+                          'days tracked',
+                        ),
+                      ),
+                      Expanded(
+                        child: _miniStat(
+                          context,
+                          Icons.show_chart,
+                          const Color(0xFF8D8FD6),
+                          '$daysToInsights',
+                          'days to insights',
+                        ),
+                      ),
+                      Expanded(
+                        child: _miniStat(
+                          context,
+                          Icons.monetization_on,
+                          const Color(0xFFFFC533),
+                          '$coins',
+                          'coins',
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Tracking Progress',
-                    style: FlutterFlowTheme.of(context).bodyMedium.override(
-                          fontWeight: FontWeight.w600,
-                          color: FlutterFlowTheme.of(context).primaryText,
-                        ),
-                  ),
-                  const SizedBox(height: 12.0),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Day $capped',
-                        style: FlutterFlowTheme.of(context).labelSmall.override(
-                              color: FlutterFlowTheme.of(context).secondaryText,
-                            ),
-                      ),
-                      Text(
-                        '$capped / 100 days',
-                        style: FlutterFlowTheme.of(context).labelSmall.override(
-                              color: FlutterFlowTheme.of(context).secondaryText,
-                            ),
-                      ),
-                    ],
-                  ),
+                if (totalDays < 90) ...[
                   const SizedBox(height: 6.0),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8.0),
-                    child: LinearProgressIndicator(
-                      value: capped / 100,
-                      minHeight: 10.0,
-                      backgroundColor: const Color(0xFF1A2A33),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        FlutterFlowTheme.of(context).primary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4.0),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: _milestones.map((m) {
-                      final reached = totalDays >= m;
-                      return Text(
-                        '$m',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight:
-                              reached ? FontWeight.bold : FontWeight.normal,
-                          color: reached
-                              ? FlutterFlowTheme.of(context).primary
-                              : FlutterFlowTheme.of(context).secondaryText,
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 14.0),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _tile(context, Icons.local_fire_department,
-                            const Color(0xFFE67532), '$streak', 'day streak'),
-                      ),
-                      const SizedBox(width: 10.0),
-                      Expanded(
-                        child: _tile(
-                            context,
-                            Icons.calendar_today,
-                            FlutterFlowTheme.of(context).primary,
-                            '$totalDays',
-                            'days tracked'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10.0),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _tile(
-                            context,
-                            Icons.show_chart,
-                            const Color(0xFF8D8FD6),
-                            '$daysToInsights',
-                            'days to insights'),
-                      ),
-                      const SizedBox(width: 10.0),
-                      Expanded(
-                        child: _tile(context, Icons.monetization_on,
-                            const Color(0xFFFFC533), '$coins', 'coins'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12.0),
                   Text(
                     _message(totalDays),
-                    style: FlutterFlowTheme.of(context).labelSmall.override(
-                          color: FlutterFlowTheme.of(context).secondaryText,
-                        ),
+                    style:
+                        TextStyle(fontSize: 10.0, color: theme.secondaryText),
                   ),
                 ],
-              ),
+              ],
             );
           },
         );
@@ -328,30 +274,43 @@ class _TrackingProgressCardState extends State<TrackingProgressCard> {
     return 'You have enough data for confirmed patterns.';
   }
 
-  Widget _tile(BuildContext context, IconData icon, Color color, String value,
-      String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A2A33),
-        borderRadius: BorderRadius.circular(12.0),
-      ),
+  Widget _miniStat(
+    BuildContext context,
+    IconData icon,
+    Color color,
+    String value,
+    String label,
+  ) {
+    final theme = FlutterFlowTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 8.0),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 20.0),
-          const SizedBox(height: 4.0),
+          Container(
+            padding: const EdgeInsets.all(6.0),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 14.0, color: color),
+          ),
+          const SizedBox(height: 6.0),
           Text(
             value,
             style: const TextStyle(
-              color: Colors.white,
               fontSize: 16.0,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
             ),
           ),
+          const SizedBox(height: 2.0),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white54, fontSize: 9.0),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 9.0, color: theme.secondaryText),
           ),
         ],
       ),

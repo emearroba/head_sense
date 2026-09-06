@@ -1,18 +1,13 @@
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
-import '/components/intensity_card_widget.dart';
-import '/flutter_flow/flutter_flow_drop_down.dart';
 import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
-import '/flutter_flow/form_field_controller.dart';
 import '/pages/results/results_widget.dart';
 import 'dart:ui';
 import '/custom_code/widgets/index.dart' as custom_widgets;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 import 'dashboard_model.dart';
 export 'dashboard_model.dart';
 
@@ -140,8 +135,159 @@ class _DashboardWidgetState extends State<DashboardWidget> {
     );
   }
 
+  // Compact stat used in the "X overview" card header (Average intensity /
+  // Spikes / Clear days) - replaces what used to be separate headline-tile
+  // cards, integrated directly above the chart instead.
+  Widget _overviewStat(
+    BuildContext context,
+    String value,
+    String label,
+    Color color,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18.0,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2.0),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10.0,
+            color: FlutterFlowTheme.of(context).secondaryText,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Tracking-progress row (days tracked / consistency / streak / insights
+  // ready), moved here from the Patterns tab's TrackingProgressCard - reuses
+  // fields the update_dashboard_metric.js cloud function already computes
+  // for the currently selected metric/period, so it needs no extra query
+  // and stays in sync with the period pill above it. Coins/milestones (the
+  // rest of the old card) were dropped, not moved - see CLAUDE.md session
+  // notes on the Patterns header cleanup.
+  Widget _trackingStatsRow(BuildContext context, DashboardRecord? focus) {
+    final theme = FlutterFlowTheme.of(context);
+    final consistencyPct = (focus?.completionRate ?? 0.0) * 100;
+    final insightsReady = focus?.analysisEligible ?? false;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12.0, 10.0, 12.0, 2.0),
+      decoration: BoxDecoration(
+        color: theme.secondaryBackground,
+        borderRadius: BorderRadius.circular(16.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(
+            context,
+            'Your progress',
+            'How consistently you\'ve been tracking this period.',
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: _miniTrackingStat(
+                  context,
+                  Icons.calendar_today,
+                  theme.primary,
+                  '${focus?.daysTracked ?? 0}',
+                  'days tracked',
+                ),
+              ),
+              Expanded(
+                child: _miniTrackingStat(
+                  context,
+                  Icons.check_circle_outline,
+                  const Color(0xFF66E0C2),
+                  '${consistencyPct.round()}%',
+                  'consistency',
+                ),
+              ),
+              Expanded(
+                child: _miniTrackingStat(
+                  context,
+                  Icons.local_fire_department,
+                  const Color(0xFFE67532),
+                  '${focus?.currentDiaryStreak ?? 0}',
+                  'day streak',
+                ),
+              ),
+              Expanded(
+                child: _miniTrackingStat(
+                  context,
+                  Icons.insights,
+                  insightsReady ? theme.primary : theme.secondaryText,
+                  insightsReady ? 'Ready' : 'Soon',
+                  'insights ready',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniTrackingStat(
+    BuildContext context,
+    IconData icon,
+    Color color,
+    String value,
+    String label,
+  ) {
+    final theme = FlutterFlowTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 8.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6.0),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 14.0, color: color),
+          ),
+          const SizedBox(height: 6.0),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16.0,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 2.0),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 9.0, color: theme.secondaryText),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // The 7-day pill has no server-computed period of its own (see
+    // PERIODS in update_dashboard_metric.js) - it's derived client-side
+    // from the trailing 7 days of the last30 doc, same as the Patterns tab.
+    final queryPeriod =
+        _model.selectedPeriod == 'last7' ? 'last30' : _model.selectedPeriod;
     return StreamBuilder<List<DashboardRecord>>(
       stream: queryDashboardRecord(
         queryBuilder: (dashboardRecord) => dashboardRecord
@@ -155,7 +301,7 @@ class _DashboardWidgetState extends State<DashboardWidget> {
             )
             .where(
               'periodType',
-              isEqualTo: _model.selectedPeriod,
+              isEqualTo: queryPeriod,
             )
             .orderBy('periodStart', descending: true),
         singleRecord: true,
@@ -195,59 +341,46 @@ class _DashboardWidgetState extends State<DashboardWidget> {
           child: Scaffold(
             key: scaffoldKey,
             backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-            body: SingleChildScrollView(
-              primary: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.start,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: EdgeInsets.all(24.0),
-                    child: Container(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.center,
+            appBar: AppBar(
+              backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+              automaticallyImplyLeading: false,
+              toolbarHeight: 68.0,
+              title: const custom_widgets.AppSectionHeader(
+                title: 'Dashboard',
+                subtitle: 'Your symptom history',
+              ),
+              elevation: 0.0,
+            ),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                primary: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                          20.0, 16.0, 20.0, 120.0),
+                      child: Container(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
                             children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'Results',
-                                    style: FlutterFlowTheme.of(context)
-                                        .headlineSmall
-                                        .override(
-                                          font: GoogleFonts.interTight(
-                                              fontWeight: FontWeight.w600),
-                                          color: FlutterFlowTheme.of(context)
-                                              .primaryText,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                  FlutterFlowIconButton(
-                                    borderRadius: 6.0,
-                                    buttonSize: 30.0,
-                                    icon: Icon(
-                                      Icons.info_outline,
-                                      color: FlutterFlowTheme.of(context).info,
-                                      size: 16.0,
+                              Text(
+                                'Looking at',
+                                style: FlutterFlowTheme.of(context)
+                                    .labelSmall
+                                    .override(
+                                      font: GoogleFonts.inter(),
+                                      color: FlutterFlowTheme.of(context)
+                                          .secondaryText,
                                     ),
-                                    onPressed: () => _showInfoDialog(
-                                      context,
-                                      'Results',
-                                      'This page shows your tracking '
-                                          'progress and how your symptoms '
-                                          'have changed over time, based on '
-                                          'your diary entries.',
-                                    ),
-                                  ),
-                                ],
                               ),
+                              const SizedBox(width: 8.0),
                               StreamBuilder<UsersRecord>(
                                 stream: UsersRecord.getDocument(
                                     currentUserReference!),
@@ -290,267 +423,25 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20.0),
-                          Text(
-                            'Select time range',
-                            style: FlutterFlowTheme.of(context)
-                                .bodyMedium
-                                .override(
-                                  font: GoogleFonts.inter(),
-                                  color: FlutterFlowTheme.of(context)
-                                      .secondaryText,
-                                  fontSize: 12.0,
-                                ),
+                          StreamBuilder<UsersRecord>(
+                            stream:
+                                UsersRecord.getDocument(currentUserReference!),
+                            builder: (context, userSnapshot) {
+                              final isPremium =
+                                  userSnapshot.data?.plan == 'premium';
+                              return custom_widgets.PeriodSelectorBubble(
+                                selectedPeriod: _model.selectedPeriod,
+                                onPeriodChanged: (p) {
+                                  _model.selectedPeriod = p;
+                                  safeSetState(() {});
+                                },
+                                isPremium: isPremium,
+                              );
+                            },
                           ),
-                          const SizedBox(height: 2.0),
-                          Container(
-                            height: 48.0,
-                            decoration: BoxDecoration(
-                              color: FlutterFlowTheme.of(context)
-                                  .secondaryBackground,
-                              borderRadius: BorderRadius.circular(14.0),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.max,
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                FFButtonWidget(
-                                  onPressed: () async {
-                                    _model.selectedPeriod = 'last30';
-                                    safeSetState(() {});
-                                  },
-                                  text: '30 days',
-                                  options: FFButtonOptions(
-                                    height: 40.0,
-                                    padding: EdgeInsets.all(4.0),
-                                    iconPadding: EdgeInsetsDirectional.fromSTEB(
-                                        0.0, 0.0, 0.0, 0.0),
-                                    color: _model.selectedPeriod == 'last30'
-                                        ? Color(0xFF123C45)
-                                        : Color(0x001A2A33),
-                                    textStyle: FlutterFlowTheme.of(context)
-                                        .titleSmall
-                                        .override(
-                                          font: GoogleFonts.rubik(
-                                            fontWeight: FontWeight.w200,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .titleSmall
-                                                    .fontStyle,
-                                          ),
-                                          color:
-                                              _model.selectedPeriod == 'last30'
-                                                  ? Color(0xFF2DE2D1)
-                                                  : FlutterFlowTheme.of(context)
-                                                      .primaryText,
-                                          fontSize: 14.0,
-                                          letterSpacing: 0.0,
-                                          fontWeight: FontWeight.w200,
-                                          fontStyle:
-                                              FlutterFlowTheme.of(context)
-                                                  .titleSmall
-                                                  .fontStyle,
-                                        ),
-                                    elevation: 0.0,
-                                    borderSide: BorderSide(
-                                      color: _model.selectedPeriod == 'last30'
-                                          ? FlutterFlowTheme.of(context).primary
-                                          : Colors.transparent,
-                                    ),
-                                    borderRadius: BorderRadius.circular(14.0),
-                                  ),
-                                ),
-                                FFButtonWidget(
-                                  onPressed: () async {
-                                    _model.selectedPeriod = 'last60';
-                                    safeSetState(() {});
-                                  },
-                                  text: '60 days',
-                                  options: FFButtonOptions(
-                                    height: 40.0,
-                                    padding: EdgeInsets.all(4.0),
-                                    iconPadding: EdgeInsetsDirectional.fromSTEB(
-                                        0.0, 0.0, 0.0, 0.0),
-                                    color: _model.selectedPeriod == 'last60'
-                                        ? FlutterFlowTheme.of(context)
-                                            .secondaryBackground
-                                        : Colors.transparent,
-                                    textStyle: FlutterFlowTheme.of(context)
-                                        .titleSmall
-                                        .override(
-                                          font: GoogleFonts.rubik(
-                                            fontWeight: FontWeight.w200,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .titleSmall
-                                                    .fontStyle,
-                                          ),
-                                          color:
-                                              _model.selectedPeriod == 'last60'
-                                                  ? Color(0xFF2DE2D1)
-                                                  : FlutterFlowTheme.of(context)
-                                                      .primaryText,
-                                          fontSize: 14.0,
-                                          letterSpacing: 0.0,
-                                          fontWeight: FontWeight.w200,
-                                          fontStyle:
-                                              FlutterFlowTheme.of(context)
-                                                  .titleSmall
-                                                  .fontStyle,
-                                        ),
-                                    elevation: 0.0,
-                                    borderSide: BorderSide(
-                                      color: _model.selectedPeriod == 'last60'
-                                          ? Color(0xFF2DE2D1)
-                                          : Colors.transparent,
-                                    ),
-                                    borderRadius: BorderRadius.circular(14.0),
-                                  ),
-                                ),
-                                FFButtonWidget(
-                                  onPressed: () async {
-                                    _model.selectedPeriod = 'last90';
-                                    safeSetState(() {});
-                                  },
-                                  text: '90 days',
-                                  options: FFButtonOptions(
-                                    height: 40.0,
-                                    padding: EdgeInsets.all(4.0),
-                                    iconPadding: EdgeInsetsDirectional.fromSTEB(
-                                        0.0, 0.0, 0.0, 0.0),
-                                    color: _model.selectedPeriod == 'last90'
-                                        ? Color(0xFF123C45)
-                                        : Colors.transparent,
-                                    textStyle: FlutterFlowTheme.of(context)
-                                        .titleSmall
-                                        .override(
-                                          font: GoogleFonts.rubik(
-                                            fontWeight: FontWeight.w200,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .titleSmall
-                                                    .fontStyle,
-                                          ),
-                                          color:
-                                              _model.selectedPeriod == 'last90'
-                                                  ? Color(0xFF2DE2D1)
-                                                  : FlutterFlowTheme.of(context)
-                                                      .primaryText,
-                                          fontSize: 14.0,
-                                          letterSpacing: 0.0,
-                                          fontWeight: FontWeight.w200,
-                                          fontStyle:
-                                              FlutterFlowTheme.of(context)
-                                                  .titleSmall
-                                                  .fontStyle,
-                                        ),
-                                    elevation: 0.0,
-                                    borderSide: BorderSide(
-                                      color: _model.selectedPeriod == 'last90'
-                                          ? Color(0xFF2DE2D1)
-                                          : Colors.transparent,
-                                    ),
-                                    borderRadius: BorderRadius.circular(14.0),
-                                  ),
-                                ),
-                                FFButtonWidget(
-                                  onPressed: () async {
-                                    _model.selectedPeriod = 'last180';
-                                    safeSetState(() {});
-                                  },
-                                  text: '180 days',
-                                  options: FFButtonOptions(
-                                    height: 40.0,
-                                    padding: EdgeInsets.all(4.0),
-                                    iconPadding: EdgeInsetsDirectional.fromSTEB(
-                                        0.0, 0.0, 0.0, 0.0),
-                                    color: _model.selectedPeriod == 'last180'
-                                        ? Color(0xFF123C45)
-                                        : Colors.transparent,
-                                    textStyle: FlutterFlowTheme.of(context)
-                                        .titleSmall
-                                        .override(
-                                          font: GoogleFonts.rubik(
-                                            fontWeight: FontWeight.w200,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .titleSmall
-                                                    .fontStyle,
-                                          ),
-                                          color:
-                                              _model.selectedPeriod == 'last180'
-                                                  ? Color(0xFF2DE2D1)
-                                                  : FlutterFlowTheme.of(context)
-                                                      .primaryText,
-                                          fontSize: 14.0,
-                                          letterSpacing: 0.0,
-                                          fontWeight: FontWeight.w200,
-                                          fontStyle:
-                                              FlutterFlowTheme.of(context)
-                                                  .titleSmall
-                                                  .fontStyle,
-                                        ),
-                                    elevation: 0.0,
-                                    borderSide: BorderSide(
-                                      color: _model.selectedPeriod == 'last180'
-                                          ? Color(0xFF2DE2D1)
-                                          : Colors.transparent,
-                                    ),
-                                    borderRadius: BorderRadius.circular(14.0),
-                                  ),
-                                ),
-                                FFButtonWidget(
-                                  onPressed: () async {
-                                    _model.selectedPeriod = 'last365';
-                                    safeSetState(() {});
-                                  },
-                                  text: '1 year',
-                                  options: FFButtonOptions(
-                                    height: 40.0,
-                                    padding: EdgeInsets.all(4.0),
-                                    iconPadding: EdgeInsetsDirectional.fromSTEB(
-                                        0.0, 0.0, 0.0, 0.0),
-                                    color: _model.selectedPeriod == 'last365'
-                                        ? Color(0xFF123C45)
-                                        : Colors.transparent,
-                                    textStyle: FlutterFlowTheme.of(context)
-                                        .titleSmall
-                                        .override(
-                                          font: GoogleFonts.rubik(
-                                            fontWeight: FontWeight.w200,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .titleSmall
-                                                    .fontStyle,
-                                          ),
-                                          color:
-                                              _model.selectedPeriod == 'last365'
-                                                  ? Color(0xFF2DE2D1)
-                                                  : FlutterFlowTheme.of(context)
-                                                      .primaryText,
-                                          fontSize: 14.0,
-                                          letterSpacing: 0.0,
-                                          fontWeight: FontWeight.w200,
-                                          fontStyle:
-                                              FlutterFlowTheme.of(context)
-                                                  .titleSmall
-                                                  .fontStyle,
-                                        ),
-                                    elevation: 0.0,
-                                    borderSide: BorderSide(
-                                      color: _model.selectedPeriod == 'last365'
-                                          ? Color(0xFF2DE2D1)
-                                          : Colors.transparent,
-                                    ),
-                                    borderRadius: BorderRadius.circular(14.0),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20.0),
+                          _trackingStatsRow(context, dashboardDashboardRecord),
                           Card(
+                            margin: EdgeInsets.zero,
                             clipBehavior: Clip.antiAliasWithSaveLayer,
                             color: FlutterFlowTheme.of(context)
                                 .secondaryBackground,
@@ -609,52 +500,111 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                                               .secondaryText,
                                         ),
                                   ),
+                                  const SizedBox(height: 16.0),
+                                  StreamBuilder<List<DailyValuesRecord>>(
+                                    stream: queryDailyValuesRecord(
+                                      parent:
+                                          dashboardDashboardRecord?.reference,
+                                      queryBuilder: (dailyValuesRecord) =>
+                                          dailyValuesRecord.orderBy('date'),
+                                    ),
+                                    builder: (context, snapshot) {
+                                      if (!snapshot.hasData) {
+                                        return const Center(
+                                          child: SizedBox(
+                                            width: 50.0,
+                                            height: 50.0,
+                                            child: CircularProgressIndicator(),
+                                          ),
+                                        );
+                                      }
+                                      final allDays = snapshot.data!;
+                                      // The 7-day pill shares the last30 doc
+                                      // (see queryPeriod above) - slice its
+                                      // trailing 7 tracked days client-side
+                                      // rather than querying separately.
+                                      final periodDays =
+                                          _model.selectedPeriod == 'last7' &&
+                                                  allDays.length > 7
+                                              ? allDays.sublist(
+                                                  allDays.length - 7)
+                                              : allDays;
+                                      final tracked = periodDays
+                                          .where((d) => d.isTracked)
+                                          .toList();
+                                      final symptomDays = tracked
+                                          .where((d) => d.value > 0)
+                                          .toList();
+                                      final avgIntensity = symptomDays.isEmpty
+                                          ? null
+                                          : symptomDays.fold<int>(
+                                                  0, (sum, d) => sum + d.value) /
+                                              symptomDays.length;
+                                      final spikes = periodDays
+                                          .where((d) => d.isSpike)
+                                          .length;
+                                      final clearDays = tracked
+                                          .where((d) => d.value <= 0)
+                                          .length;
+
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: _overviewStat(
+                                                  context,
+                                                  avgIntensity == null
+                                                      ? '—'
+                                                      : avgIntensity
+                                                          .toStringAsFixed(1),
+                                                  'Average intensity',
+                                                  FlutterFlowTheme.of(context)
+                                                      .primary,
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: _overviewStat(
+                                                  context,
+                                                  '$spikes',
+                                                  'Spikes',
+                                                  const Color(0xFFFFC533),
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: _overviewStat(
+                                                  context,
+                                                  '$clearDays',
+                                                  'Clear days',
+                                                  const Color(0xFF36D6D6),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 16.0),
+                                          Container(
+                                            width: 350.0,
+                                            height: 200.0,
+                                            child: custom_widgets.SymptomBarChart(
+                                              width: 350.0,
+                                              height: 200.0,
+                                              documents: periodDays,
+                                              yAxisLabel:
+                                                  '${dashboardDashboardRecord?.metricLabel} (0-10)',
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
                                 ],
                               ),
                             ),
                           ),
-                          const SizedBox(height: 20.0),
-                          StreamBuilder<List<DailyValuesRecord>>(
-                            stream: queryDailyValuesRecord(
-                              parent: dashboardDashboardRecord?.reference,
-                              queryBuilder: (dailyValuesRecord) =>
-                                  dailyValuesRecord.orderBy('date'),
-                            ),
-                            builder: (context, snapshot) {
-                              // Customize what your widget looks like when it's loading.
-                              if (!snapshot.hasData) {
-                                return Center(
-                                  child: SizedBox(
-                                    width: 50.0,
-                                    height: 50.0,
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        FlutterFlowTheme.of(context).primary,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }
-                              List<DailyValuesRecord>
-                                  symptomBarChartDailyValuesRecordList =
-                                  snapshot.data!;
-
-                              return Container(
-                                width: 350.0,
-                                height: 200.0,
-                                child: custom_widgets.SymptomBarChart(
-                                  width: 350.0,
-                                  height: 200.0,
-                                  documents:
-                                      symptomBarChartDailyValuesRecordList,
-                                  yAxisLabel:
-                                      '${dashboardDashboardRecord?.metricLabel} (0-10)',
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 20.0),
                           Card(
+                            margin: EdgeInsets.zero,
                             clipBehavior: Clip.antiAliasWithSaveLayer,
                             color: FlutterFlowTheme.of(context)
                                 .secondaryBackground,
@@ -725,8 +675,8 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 20.0),
                           Card(
+                            margin: EdgeInsets.zero,
                             clipBehavior: Clip.antiAliasWithSaveLayer,
                             color: FlutterFlowTheme.of(context)
                                 .secondaryBackground,
@@ -804,7 +754,7 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                           Container(
                             height: 24.0,
                           ),
-                        ].divide(SizedBox(height: 24.0)),
+                        ].divide(SizedBox(height: 16.0)),
                       ),
                     ),
                   ),
@@ -812,6 +762,7 @@ class _DashboardWidgetState extends State<DashboardWidget> {
               ),
             ),
           ),
+        ),
         );
       },
     );

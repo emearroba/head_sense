@@ -253,7 +253,7 @@ class _NavBarPageState extends State<NavBarPage> {
                       : FlutterFlowTheme.of(context).secondaryText,
                 ),
                 Text(
-                  'Patterns',
+                  'Insights',
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: currentIndex == 2

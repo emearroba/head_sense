@@ -2,14 +2,15 @@
 import '/auth/firebase_auth/auth_util.dart';
 import '/backend/backend.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
+import '/flutter_flow/flutter_flow_util.dart';
 import 'headline_metric_tiles.dart';
 import 'intensity_distribution_chart.dart';
+import 'intervention_analytics.dart';
 import 'symptom_analytics.dart';
 import 'symptom_trend_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:collection/collection.dart';
-import 'dart:math';
 // Begin custom widget code
 // DO NOT REMOVE OR MODIFY THE CODE ABOVE!
 
@@ -23,11 +24,12 @@ import 'dart:math';
 // scale-type dashboard data - everything below is computed around whichever
 // one is selected, so none of the copy assumes "headache" specifically.
 //
-// Layout, top to bottom, is deliberately "results first": the Looking-at
-// picker and period pills are compact filter chrome, then a bold "Your X
-// results" heading anchors four headline metric tiles, a trend chart, an
+// Layout, top to bottom, is deliberately "results first": a bold "Your X
+// patterns" heading anchors four headline metric tiles, a trend chart, an
 // intensity distribution, and finally the narrative "What we noticed"
-// insight cards - in that order of visual weight.
+// insight cards - in that order of visual weight. The Looking-at picker and
+// period pills are owned by ResultsWidget (shown above the My symptoms /
+// Connections tabs, not in here) - see selectedFocusKey/selectedPeriod.
 //
 // Period selector has 4 pills: 7/30/60/90 days. There is no server-computed
 // "last7" period (see PERIODS in update_dashboard_metric.js), so the weekly
@@ -46,96 +48,44 @@ class PatternInsightsPanel extends StatefulWidget {
   const PatternInsightsPanel({
     super.key,
     required this.trackedMetricKeys,
-    required this.userPlan,
+    required this.selectedPeriod,
+    required this.onPeriodChanged,
+    required this.selectedFocusKey,
+    required this.totalDays,
+    this.onOpenConnection,
+    this.onOpenConnectionsTab,
+    this.onOpenInterventionsTab,
   });
 
   final List<String> trackedMetricKeys;
-  final String userPlan;
+  // Period and focus metric are owned by ResultsWidget (shown in the
+  // selectors above the My symptoms / Connections tabs) rather than kept as
+  // local state here, so the page chrome and this panel can never disagree
+  // about which window/metric is selected.
+  final String selectedPeriod;
+  final ValueChanged<String> onPeriodChanged;
+  final String selectedFocusKey;
+
+  // Total days the user has ever logged a diary entry - used for the
+  // "Building your baseline" fallback under "Since you started X", same
+  // 30-day convention already used by PatternLockCard/TrackingProgressCard.
+  final int totalDays;
+
+  // Jumps to the Connections tab with [otherKey] preselected against the
+  // current focus symptom - wired up from "Your strongest connections" rows.
+  final ValueChanged<String>? onOpenConnection;
+  // Jumps to the Connections tab without preselecting a pair - wired up from
+  // the "Explore your data" section's correlation-matrix link.
+  final VoidCallback? onOpenConnectionsTab;
+  // Jumps to the Interventions tab - wired up from the "Since you started X"
+  // card's "Explore intervention" link.
+  final VoidCallback? onOpenInterventionsTab;
 
   @override
   State<PatternInsightsPanel> createState() => _PatternInsightsPanelState();
 }
 
 class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
-  static const _defaultFocusMetricKey = 'headache_intensity';
-
-  String _selectedPeriod = 'last30';
-  // Which tracked metric the discoveries are built around - defaults to
-  // headache but can be switched (e.g. to a sleep-quality metric) via the
-  // dropdown in the header.
-  String _selectedFocusKey = _defaultFocusMetricKey;
-
-  bool get _isPremium => widget.userPlan == 'premium';
-  static const _premiumPeriods = {'last60', 'last90'};
-
-  void _selectPeriod(String period) {
-    if (_premiumPeriods.contains(period) && !_isPremium) {
-      _showPeriodUpsell(period);
-      return;
-    }
-    setState(() => _selectedPeriod = period);
-  }
-
-  void _showPeriodUpsell(String period) {
-    final label = period == 'last60' ? '60-day' : '90-day';
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.0),
-        ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.workspace_premium, color: Color(0xFFFFC533)),
-            const SizedBox(width: 8.0),
-            Text(
-              '$label view',
-              style: FlutterFlowTheme.of(context).titleSmall.override(
-                    fontWeight: FontWeight.w600,
-                    color: FlutterFlowTheme.of(context).primaryText,
-                  ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Longer-range analysis is available with Premium — upgrade to '
-          'unlock the $label view.',
-          style: FlutterFlowTheme.of(context).bodySmall.override(
-                color: FlutterFlowTheme.of(context).secondaryText,
-              ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(
-              'Not now',
-              style: TextStyle(
-                color: FlutterFlowTheme.of(context).secondaryText,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              // TODO: wire to the real subscription flow once payment infra
-              // (see CLAUDE.md) is built; for now this is a UI-only
-              // placeholder, matching the existing upgrade TODO in
-              // results_widget.dart.
-            },
-            child: const Text(
-              'Upgrade',
-              style: TextStyle(
-                color: Color(0xFFFFC533),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   String _shortLabel(String metricLabel) => metricLabel
       .toLowerCase()
@@ -146,7 +96,8 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
     // The 7-day pill has no server-computed period of its own — it's
     // derived from the last30 doc, so the query below always fetches
     // last30 while last7 is selected.
-    final queryPeriod = _selectedPeriod == 'last7' ? 'last30' : _selectedPeriod;
+    final queryPeriod =
+        widget.selectedPeriod == 'last7' ? 'last30' : widget.selectedPeriod;
 
     return StreamBuilder<List<DashboardRecord>>(
       stream: queryDashboardRecord(
@@ -155,171 +106,101 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
             .where('periodType', isEqualTo: queryPeriod),
       ),
       builder: (context, snapshot) {
-        Widget? focusDropdown;
-        Widget body;
         if (!snapshot.hasData) {
-          body = const Padding(
+          return const Padding(
             padding: EdgeInsets.symmetric(vertical: 24.0),
             child: Center(child: CircularProgressIndicator()),
           );
-        } else {
-          final docs = snapshot.data!;
-          // Any metric the user tracks (plus the always-on headache +
-          // painkiller ones) that actually has data for this period can be
-          // picked as the symptom to analyze.
-          final focusOptions = docs
-              .where((d) =>
-                  d.metricKey == 'headache_intensity' ||
-                  d.metricKey == 'analgesia' ||
-                  widget.trackedMetricKeys.contains(d.metricKey))
-              .toList()
-            ..sort((a, b) => a.metricLabel.compareTo(b.metricLabel));
-          final focusKey = focusOptions.any((d) => d.metricKey == _selectedFocusKey)
-              ? _selectedFocusKey
-              : _defaultFocusMetricKey;
-          focusDropdown = _focusSelector(context, focusOptions, focusKey);
-
-          final focus = docs.firstWhereOrNull((d) => d.metricKey == focusKey);
-          body = _selectedPeriod == 'last7'
-              ? _weeklyView(context, focus)
-              : _periodView(context, focus);
         }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (focusDropdown != null) ...[
-              focusDropdown,
-              const SizedBox(height: 10.0),
-            ],
-            _periodSelector(context),
-            const SizedBox(height: 18.0),
-            body,
-          ],
-        );
+        final docs = snapshot.data!;
+        final focus = docs
+            .firstWhereOrNull((d) => d.metricKey == widget.selectedFocusKey);
+        return widget.selectedPeriod == 'last7'
+            ? _weeklyView(context, focus, docs)
+            : _periodView(context, focus, docs);
       },
     );
   }
 
-  Widget _focusSelector(
-    BuildContext context,
-    List<DashboardRecord> options,
-    String selectedKey,
-  ) {
-    if (options.length <= 1) return const SizedBox.shrink();
+  Widget _resultsHeading(BuildContext context, String metricLabel) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          'Looking at: ',
-          style: FlutterFlowTheme.of(context).labelSmall.override(
-                font: GoogleFonts.inter(),
-                color: FlutterFlowTheme.of(context).secondaryText,
-              ),
-        ),
-        DropdownButton<String>(
-          value: selectedKey,
-          dropdownColor: const Color(0xFF1A2A33),
-          underline: const SizedBox.shrink(),
-          style: FlutterFlowTheme.of(context).labelMedium.override(
-                font: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                color: FlutterFlowTheme.of(context).primaryText,
-                fontWeight: FontWeight.w600,
-              ),
-          items: options
-              .map((d) => DropdownMenuItem(
-                    value: d.metricKey,
-                    child: Text(d.metricLabel),
-                  ))
-              .toList(),
-          onChanged: (key) {
-            if (key == null) return;
-            setState(() => _selectedFocusKey = key);
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _periodSelector(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: _pill(context, 'last7', '7 days')),
-        const SizedBox(width: 8.0),
-        Expanded(child: _pill(context, 'last30', '30 days')),
-        const SizedBox(width: 8.0),
-        Expanded(
-          child: _pill(context, 'last60', '60 days', premium: !_isPremium),
-        ),
-        const SizedBox(width: 8.0),
-        Expanded(
-          child: _pill(context, 'last90', '90 days', premium: !_isPremium),
-        ),
-      ],
-    );
-  }
-
-  Widget _pill(BuildContext context, String period, String label,
-      {bool premium = false}) {
-    final selected = _selectedPeriod == period;
-    final selectedColor = FlutterFlowTheme.of(context).primary;
-    return InkWell(
-      onTap: () => _selectPeriod(period),
-      borderRadius: BorderRadius.circular(12.0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10.0),
-        decoration: BoxDecoration(
-          color:
-              selected ? const Color(0xFF123C45) : const Color(0xFF1A2A33),
-          borderRadius: BorderRadius.circular(12.0),
-          border: Border.all(
-            color: selected ? selectedColor : Colors.transparent,
-            width: 1.0,
+        Flexible(
+          child: Text(
+            'Your ${_shortLabel(metricLabel)} patterns',
+            overflow: TextOverflow.ellipsis,
+            style: FlutterFlowTheme.of(context).headlineSmall.override(
+                  font: GoogleFonts.interTight(fontWeight: FontWeight.w700),
+                  color: FlutterFlowTheme.of(context).primaryText,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20.0,
+                ),
           ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              label,
+        const SizedBox(width: 6.0),
+        InkWell(
+          onTap: () => _showResultsInfo(context, metricLabel),
+          borderRadius: BorderRadius.circular(12.0),
+          child: Padding(
+            padding: const EdgeInsets.all(4.0),
+            child: Icon(
+              Icons.info_outline,
+              size: 16.0,
+              color: FlutterFlowTheme.of(context).secondaryText,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showResultsInfo(BuildContext context, String metricLabel) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+        title: Text(
+          'About these results',
+          style: FlutterFlowTheme.of(context).titleSmall.override(
+                fontWeight: FontWeight.w700,
+                color: FlutterFlowTheme.of(context).primaryText,
+              ),
+        ),
+        content: Text(
+          'Average intensity, spikes, crystal clear days, and most common '
+          'intensity are computed from your logged ${metricLabel.toLowerCase()} '
+          'entries in the selected window. Delta indicators compare the '
+          'second half of the window to the first half.',
+          style: FlutterFlowTheme.of(context).bodySmall.override(
+                color: FlutterFlowTheme.of(context).secondaryText,
+                lineHeight: 1.4,
+              ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(
+              'Got it',
               style: TextStyle(
-                fontSize: 12.0,
+                color: FlutterFlowTheme.of(context).primary,
                 fontWeight: FontWeight.w600,
-                color: selected
-                    ? selectedColor
-                    : FlutterFlowTheme.of(context).primaryText,
               ),
             ),
-            // Subtle star instead of a lock icon - the pill stays fully
-            // visible/tappable, it just opens an upsell dialog for Core
-            // users (see _selectPeriod).
-            if (premium) ...[
-              const SizedBox(width: 3.0),
-              const Text(
-                '✦',
-                style: TextStyle(fontSize: 10.0, color: Color(0xFFFFC533)),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _resultsHeading(BuildContext context, String metricLabel) {
-    return Text(
-      'Your ${_shortLabel(metricLabel)} results',
-      style: FlutterFlowTheme.of(context).headlineSmall.override(
-            font: GoogleFonts.interTight(fontWeight: FontWeight.w700),
-            color: FlutterFlowTheme.of(context).primaryText,
-            fontWeight: FontWeight.w700,
-            fontSize: 20.0,
           ),
+        ],
+      ),
     );
   }
 
   // ---- 30/60/90-day view ----
 
-  Widget _periodView(BuildContext context, DashboardRecord? focus) {
+  Widget _periodView(
+    BuildContext context,
+    DashboardRecord? focus,
+    List<DashboardRecord> docs,
+  ) {
     if (focus == null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,9 +212,14 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
       );
     }
 
-    final tracked = focus.dailyValues.where((d) => d.isTracked);
-    final histogram = intensityHistogram(tracked);
+    final sortedTracked = [...focus.dailyValues]
+      ..sort((a, b) => a.day.compareTo(b.day));
+    final trackedOnly =
+        sortedTracked.where((d) => d.isTracked).toList(growable: false);
+    final histogram = intensityHistogram(trackedOnly);
     final mode = modeIntensityValue(histogram);
+    final intensityDelta = _intensityDelta(trackedOnly);
+    final spikeDelta = _spikeDelta(trackedOnly);
     final hasEnoughData = focus.periodHasEnoughData;
     final eligible = focus.analysisEligible;
 
@@ -341,85 +227,658 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
         ? (_buildDiscoveries(focus)..sort((a, b) => b.score.compareTo(a.score)))
         : const <_Discovery>[];
 
+    // Lead with the narrative ("Somatica noticed X"), not the stats - see
+    // module comment. Order: what we noticed -> since you started X ->
+    // strongest connections -> demoted stat row/trend -> explore your data
+    // (the raw charts, for whoever wants the "proof" layer underneath).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _resultsHeading(context, focus.metricLabel),
-        const SizedBox(height: 14.0),
-        HeadlineMetricTiles(metrics: [
-          HeadlineMetric(
-            label: 'Average intensity',
-            value: focus.symptomDays > 0
-                ? focus.meanIntensitySymptomDays.toStringAsFixed(1)
-                : '—',
-            icon: Icons.show_chart_rounded,
-            color: FlutterFlowTheme.of(context).primary,
-          ),
-          HeadlineMetric(
-            label: 'Spikes',
-            value: '${focus.spikeCount}',
-            icon: Icons.bolt_rounded,
-            color: const Color(0xFFFFC533),
-          ),
-          HeadlineMetric(
-            label: 'Crystal clear days',
-            value: '${focus.symptomFreeDays}',
-            icon: Icons.spa_outlined,
-            color: kCrystalBlue,
-          ),
-          HeadlineMetric(
-            label: 'Most common intensity',
-            value: mode == null ? '—' : '$mode',
-            sublabel: mode == null ? null : intensityCategoryLabel(mode.toDouble()),
-            icon: Icons.bar_chart_rounded,
-            color: mode == null
-                ? FlutterFlowTheme.of(context).secondaryText
-                : intensityColorForValue(mode.toDouble()),
-          ),
-        ]),
-        const SizedBox(height: 22.0),
-        _sectionHeader(context, '${_shortLabel(focus.metricLabel)} trend'),
-        const SizedBox(height: 8.0),
-        _cardWrap(context, SymptomTrendChart(values: focus.dailyValues)),
-        const SizedBox(height: 22.0),
-        _sectionHeader(context, 'Intensity distribution'),
-        const SizedBox(height: 8.0),
-        _cardWrap(context, IntensityDistributionChart(histogram: histogram)),
-        const SizedBox(height: 22.0),
-        _sectionHeader(context, 'What we noticed'),
-        const SizedBox(height: 8.0),
-        if (!hasEnoughData)
-          _emptyCard(
-            context,
-            "You've logged ${(focus.completionRate * 100).round()}% of "
-            'days this period — a bit more consistency will unlock your '
-            'insight cards.',
-          )
-        else if (!eligible)
-          _emptyCard(
-            context,
-            'Your ${focus.metricLabel.toLowerCase()} has been pretty '
-            "stable this period — not enough ups and downs yet to detect "
-            "a pattern. That's good news!",
-          )
-        else if (discoveries.isEmpty)
-          _emptyCard(
-            context,
-            'Nothing stands out strongly enough yet — keep tracking and '
-            'check back soon.',
-          )
-        else ...[
-          _heroCard(context, discoveries.first),
-          ...discoveries.skip(1).take(6).map((d) => Padding(
-                padding: const EdgeInsets.only(top: 12.0),
-                child: _discoveryCard(context, d),
-              )),
-        ],
+        const SizedBox(height: 18.0),
+        _noticedSection(context, hasEnoughData, eligible, focus, discoveries),
+        _interventionHighlight(context, focus),
+        _strongestConnectionsSection(context, focus, docs),
+        _thisMonthSection(
+            context, focus, mode, intensityDelta, spikeDelta),
+        _exploreYourData(context, focus, histogram),
       ],
     );
   }
 
-  Widget _cardWrap(BuildContext context, Widget child) {
+  // "What Somatica noticed" - the discovery hero+grid, now the very first
+  // thing under the page heading instead of the last. Content unchanged
+  // from before, just relocated.
+  Widget _noticedSection(
+    BuildContext context,
+    bool hasEnoughData,
+    bool eligible,
+    DashboardRecord focus,
+    List<_Discovery> discoveries,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeaderRow(
+            context,
+            'What Somatica noticed',
+            onViewAll: discoveries.length > 3
+                ? () => _showAllDiscoveries(context, discoveries)
+                : null,
+          ),
+          const SizedBox(height: 10.0),
+          if (!hasEnoughData)
+            _emptyCard(
+              context,
+              "You've logged ${(focus.completionRate * 100).round()}% of "
+              'days this period — a bit more consistency will unlock your '
+              'insight cards.',
+            )
+          else if (!eligible)
+            _emptyCard(
+              context,
+              'Your ${focus.metricLabel.toLowerCase()} has been pretty '
+              "stable this period — not enough ups and downs yet to detect "
+              "a pattern. That's good news!",
+            )
+          else if (discoveries.isEmpty)
+            _emptyCard(
+              context,
+              'Nothing stands out strongly enough yet — keep tracking and '
+              'check back soon.',
+            )
+          else
+            _noticedGrid(context, discoveries.take(3).toList()),
+        ],
+      ),
+    );
+  }
+
+  // "Since you started X" - the most-recently-started intervention with
+  // enough before/after data to compare, or a "building your baseline" nudge
+  // if the user has interventions but not enough tracked days yet. Renders
+  // nothing at all when the user hasn't added any intervention - no nagging
+  // to add one they haven't shown interest in. Self-fetches user/medication/
+  // diet data (mirrors InterventionsComparisonPanel) rather than having
+  // ResultsWidget prop-drill it down, matching how this panel and
+  // ConnectionsPanel already each own their own Firestore listeners.
+  Widget _interventionHighlight(BuildContext context, DashboardRecord focus) {
+    return StreamBuilder<UsersRecord>(
+      stream: UsersRecord.getDocument(currentUserReference!),
+      builder: (context, userSnapshot) {
+        final user = userSnapshot.data;
+        if (user == null ||
+            (user.medicationDoses.isEmpty && user.dietTypeKeys.isEmpty)) {
+          return const SizedBox.shrink();
+        }
+        return StreamBuilder<List<MedicationsRecord>>(
+          stream: queryMedicationsRecord(),
+          builder: (context, medsSnapshot) {
+            return StreamBuilder<List<DietTypesRecord>>(
+              stream: queryDietTypesRecord(),
+              builder: (context, dietsSnapshot) {
+                final medsById = {
+                  for (final m in medsSnapshot.data ?? <MedicationsRecord>[])
+                    m.reference.id: m,
+                };
+                final dietsById = {
+                  for (final d in dietsSnapshot.data ?? <DietTypesRecord>[])
+                    d.reference.id: d,
+                };
+                final items = buildInterventionItems(
+                  user: user,
+                  medsById: medsById,
+                  dietsById: dietsById,
+                );
+                if (items.isEmpty) return const SizedBox.shrink();
+
+                // Most-recently-started item with enough before/after data
+                // wins - freshest change is the most "newsworthy" one.
+                final withStart = items.where((i) => i.startedAt != null)
+                    .toList()
+                  ..sort((a, b) => b.startedAt!.compareTo(a.startedAt!));
+                InterventionItem? bestItem;
+                InterventionComparison? bestComparison;
+                for (final item in withStart) {
+                  final comparison =
+                      buildInterventionComparison(focus, item.startedAt!);
+                  if (comparison != null) {
+                    bestItem = item;
+                    bestComparison = comparison;
+                    break;
+                  }
+                }
+
+                if (bestItem == null || bestComparison == null) {
+                  if (widget.totalDays >= 30) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 24.0),
+                    child: _baselineBuildingCard(context),
+                  );
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 24.0),
+                  child: _interventionCard(
+                      context, focus, bestItem, bestComparison),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _baselineBuildingCard(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    final clamped = widget.totalDays.clamp(0, 30);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: theme.secondaryBackground,
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: theme.alternate, width: 1.0),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "You're building your baseline",
+            style: theme.bodyMedium.override(
+              font: GoogleFonts.inter(fontWeight: FontWeight.w700),
+              color: theme.primaryText,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4.0),
+          Text(
+            "You've tracked $clamped of 30 recommended days. A bit more "
+            'history will give you a clearer before-and-after comparison '
+            'for what you started.',
+            style: theme.labelSmall.override(
+              font: GoogleFonts.inter(),
+              color: theme.secondaryText,
+              lineHeight: 1.4,
+            ),
+          ),
+          const SizedBox(height: 12.0),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6.0),
+            child: LinearProgressIndicator(
+              value: clamped / 30.0,
+              minHeight: 6.0,
+              backgroundColor: theme.alternate,
+              valueColor: AlwaysStoppedAnimation<Color>(theme.primary),
+            ),
+          ),
+          const SizedBox(height: 6.0),
+          Text(
+            '$clamped / 30 days',
+            style: theme.labelSmall.override(
+              font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              color: theme.secondaryText,
+              fontSize: 11.0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _interventionCard(
+    BuildContext context,
+    DashboardRecord focus,
+    InterventionItem item,
+    InterventionComparison comparison,
+  ) {
+    final theme = FlutterFlowTheme.of(context);
+    final signal = interventionSignalTier(comparison);
+    final deltaPct = comparison.deltaPct;
+    return InkWell(
+      onTap: widget.onOpenInterventionsTab,
+      borderRadius: BorderRadius.circular(18.0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: theme.secondaryBackground,
+          borderRadius: BorderRadius.circular(18.0),
+          border: Border.all(color: signal.color.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Since you started ${item.label}',
+                    style: theme.bodyMedium.override(
+                      font: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                      color: theme.primaryText,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10.0, vertical: 4.0),
+                  decoration: BoxDecoration(
+                    color: signal.color.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(20.0),
+                  ),
+                  child: Text(
+                    signal.label,
+                    style: TextStyle(
+                        color: signal.color,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10.5),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4.0),
+            Text(
+              'Started ${dateTimeFormat('MMM d, y', item.startedAt!)} · '
+              '${comparison.daysSinceStart} days tracked since',
+              style: theme.labelSmall.override(
+                font: GoogleFonts.inter(),
+                color: theme.secondaryText,
+                fontSize: 11.0,
+              ),
+            ),
+            const SizedBox(height: 14.0),
+            Row(
+              children: [
+                Text(comparison.beforeAvg.toStringAsFixed(1),
+                    style: TextStyle(
+                        fontSize: 26.0,
+                        fontWeight: FontWeight.w800,
+                        color: theme.secondaryText)),
+                const SizedBox(width: 4.0),
+                Text('before',
+                    style: TextStyle(
+                        fontSize: 12.0, color: theme.secondaryText)),
+                const SizedBox(width: 10.0),
+                Icon(Icons.arrow_forward_rounded,
+                    size: 18.0, color: theme.secondaryText),
+                const SizedBox(width: 10.0),
+                Text(comparison.afterAvg.toStringAsFixed(1),
+                    style: TextStyle(
+                        fontSize: 26.0,
+                        fontWeight: FontWeight.w800,
+                        color: theme.primaryText)),
+                const SizedBox(width: 4.0),
+                Text('after',
+                    style: TextStyle(
+                        fontSize: 12.0, color: theme.secondaryText)),
+              ],
+            ),
+            if (deltaPct != null) ...[
+              const SizedBox(height: 8.0),
+              Row(
+                children: [
+                  Icon(
+                    comparison.betterAfter
+                        ? Icons.arrow_downward_rounded
+                        : Icons.arrow_upward_rounded,
+                    size: 15.0,
+                    color: comparison.betterAfter
+                        ? const Color(0xFF4CAF6D)
+                        : const Color(0xFFE5484D),
+                  ),
+                  const SizedBox(width: 4.0),
+                  Text(
+                    '${(deltaPct.abs() * 100).round()}% '
+                    '${comparison.betterAfter ? 'lower' : 'higher'} average '
+                    '${_shortLabel(focus.metricLabel)} intensity',
+                    style: TextStyle(
+                      color: comparison.betterAfter
+                          ? const Color(0xFF4CAF6D)
+                          : const Color(0xFFE5484D),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (signal.isEarly) ...[
+              const SizedBox(height: 10.0),
+              Text(
+                'Early signal — keep tracking to see whether this pattern '
+                'continues.',
+                style: theme.labelSmall.override(
+                  font: GoogleFonts.inter(fontStyle: FontStyle.italic),
+                  color: theme.secondaryText,
+                  fontSize: 11.0,
+                ),
+              ),
+            ],
+            if (widget.onOpenInterventionsTab != null) ...[
+              const SizedBox(height: 10.0),
+              Row(
+                children: [
+                  Text(
+                    'Explore intervention',
+                    style: TextStyle(
+                        color: theme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12.5),
+                  ),
+                  Icon(Icons.arrow_forward_rounded,
+                      size: 14.0, color: theme.primary),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // "Your strongest connections" - the auto-ranked list against every other
+  // tracked metric (rankedConnections, symptom_analytics.dart), computed
+  // from the same `docs` this panel already fetches - no extra Firestore
+  // listener. Top 3 shown; tapping one jumps to the Connections tab with
+  // that pair preselected.
+  Widget _strongestConnectionsSection(
+    BuildContext context,
+    DashboardRecord focus,
+    List<DashboardRecord> docs,
+  ) {
+    if (docs.length < 2) return const SizedBox.shrink();
+    final ranked = rankedConnections(focus, docs);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeaderRow(
+            context,
+            'Your strongest connections',
+            onViewAll:
+                widget.onOpenConnectionsTab == null || ranked.length <= 3
+                    ? null
+                    : widget.onOpenConnectionsTab,
+          ),
+          const SizedBox(height: 10.0),
+          if (ranked.isEmpty)
+            _emptyCard(
+              context,
+              'Nothing stands out strongly enough yet — keep tracking your '
+              'other variables to see what connects.',
+            )
+          else
+            for (var i = 0; i < min(3, ranked.length); i++)
+              Padding(
+                padding: EdgeInsets.only(
+                    bottom: i == min(3, ranked.length) - 1 ? 0.0 : 8.0),
+                child: _connectionMiniRow(
+                    context, ranked[i].$1, ranked[i].$2),
+              ),
+        ],
+      ),
+    );
+  }
+
+  Widget _connectionMiniRow(
+    BuildContext context,
+    DashboardRecord other,
+    SymptomConnection connection,
+  ) {
+    final theme = FlutterFlowTheme.of(context);
+    final tier = connectionStrengthTier(connection.strengthPct);
+    return InkWell(
+      onTap: widget.onOpenConnection == null
+          ? null
+          : () => widget.onOpenConnection!(other.metricKey),
+      borderRadius: BorderRadius.circular(14.0),
+      child: Container(
+        padding: const EdgeInsets.all(12.0),
+        decoration: BoxDecoration(
+          color: theme.secondaryBackground,
+          borderRadius: BorderRadius.circular(14.0),
+          border: Border.all(color: theme.alternate, width: 1.0),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7.0),
+              decoration: BoxDecoration(
+                color: tier.color.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(connection.icon, size: 15.0, color: tier.color),
+            ),
+            const SizedBox(width: 10.0),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    other.metricLabel,
+                    style: theme.bodySmall.override(
+                      font: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                      color: theme.primaryText,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2.0),
+                  Text(
+                    connection.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.labelSmall.override(
+                      font: GoogleFonts.inter(),
+                      color: theme.secondaryText,
+                      fontSize: 11.0,
+                      lineHeight: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+              decoration: BoxDecoration(
+                color: tier.color.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(20.0),
+              ),
+              child: Text(
+                '${tier.label} signal',
+                style: TextStyle(
+                    color: tier.color,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 10.0),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Demoted "this month" summary - was the top-of-page 4-tile row; now a
+  // lighter 3-stat row (drops "most common intensity", the least
+  // narratively useful of the four) plus the trend chart, both below the
+  // narrative sections above.
+  Widget _thisMonthSection(
+    BuildContext context,
+    DashboardRecord focus,
+    int? mode,
+    double? intensityDelta,
+    int spikeDelta,
+  ) {
+    final theme = FlutterFlowTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Your ${_shortLabel(focus.metricLabel)} this ${_periodNoun()}',
+            style: theme.labelMedium.override(
+              font: GoogleFonts.interTight(fontWeight: FontWeight.w700),
+              color: theme.primaryText,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10.0),
+          HeadlineMetricTiles(metrics: [
+            HeadlineMetric(
+              label: 'Average intensity',
+              value: focus.symptomDays > 0
+                  ? focus.meanIntensitySymptomDays.toStringAsFixed(1)
+                  : '—',
+              color: theme.primary,
+              footer: intensityDelta == null
+                  ? null
+                  : HeadlineDelta(
+                      isDown: intensityDelta < 0,
+                      magnitudeLabel:
+                          '${(intensityDelta.abs() * 100).round()}%',
+                      goodWhenDown: true,
+                    ),
+            ),
+            HeadlineMetric(
+              label: 'Spikes',
+              value: '${focus.spikeCount}',
+              color: const Color(0xFFFFC533),
+              footer: spikeDelta == 0
+                  ? null
+                  : HeadlineDelta(
+                      isDown: spikeDelta < 0,
+                      magnitudeLabel: '${spikeDelta.abs()}',
+                      goodWhenDown: true,
+                    ),
+            ),
+            HeadlineMetric(
+              label: 'Crystal clear days',
+              value: '${focus.symptomFreeDays}',
+              color: kCrystalBlue,
+              footer: focus.symptomFreeDays > 0
+                  ? const Icon(Icons.auto_awesome,
+                      size: 14.0, color: kCrystalBlue)
+                  : null,
+            ),
+          ]),
+          const SizedBox(height: 12.0),
+          SymptomTrendChart(values: focus.dailyValues, height: 140.0),
+        ],
+      ),
+    );
+  }
+
+  String _periodNoun() {
+    switch (widget.selectedPeriod) {
+      case 'last60':
+        return '60 days';
+      case 'last90':
+        return '90 days';
+      default:
+        return 'month';
+    }
+  }
+
+  // "Proof, not product" layer - the intensity distribution chart (was
+  // always shown inline before) plus a link into the Connections tab's full
+  // correlation matrix, both tucked behind a single collapsed expansion so
+  // the data-nerd view is a tap away rather than competing with the
+  // narrative sections above for first-screen space.
+  Widget _exploreYourData(
+    BuildContext context,
+    DashboardRecord focus,
+    Map<int, int> histogram,
+  ) {
+    final theme = FlutterFlowTheme.of(context);
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        iconColor: theme.secondaryText,
+        collapsedIconColor: theme.secondaryText,
+        title: Text(
+          'Explore your data',
+          style: theme.labelMedium.override(
+            font: GoogleFonts.interTight(fontWeight: FontWeight.w700),
+            color: theme.primaryText,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        children: [
+          _cardWrap(
+            context,
+            IntensityDistributionChart(histogram: histogram),
+            title: 'Intensity Distribution',
+          ),
+          if (widget.onOpenConnectionsTab != null) ...[
+            const SizedBox(height: 12.0),
+            OutlinedButton.icon(
+              onPressed: widget.onOpenConnectionsTab,
+              icon: Icon(Icons.grid_on_rounded, size: 16.0, color: theme.primary),
+              label: const Text('Advanced correlations'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: theme.primary,
+                side: BorderSide(color: theme.primary.withValues(alpha: 0.5)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24.0),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ---- "vs earlier this period" deltas ----
+  //
+  // There's no server-computed "previous period" doc (every periodType is a
+  // trailing window from today, not a shifted one) so these compare the
+  // second half of the current window to the first half - an honest signal
+  // of "is this improving within the window I'm looking at", not a literal
+  // previous-window comparison. null/0 suppresses the footer entirely
+  // rather than showing a misleading number from too little data.
+  double? _intensityDelta(List<DailyValueStruct> trackedSorted) {
+    if (trackedSorted.length < 8) return null;
+    final mid = trackedSorted.length ~/ 2;
+    final earlier = trackedSorted
+        .sublist(0, mid)
+        .where((d) => d.value > 0)
+        .map((d) => d.value)
+        .toList();
+    final recent = trackedSorted
+        .sublist(mid)
+        .where((d) => d.value > 0)
+        .map((d) => d.value)
+        .toList();
+    if (earlier.isEmpty || recent.isEmpty) return null;
+    final earlierAvg = earlier.reduce((a, b) => a + b) / earlier.length;
+    final recentAvg = recent.reduce((a, b) => a + b) / recent.length;
+    if (earlierAvg == 0) return null;
+    return (recentAvg - earlierAvg) / earlierAvg;
+  }
+
+  int _spikeDelta(List<DailyValueStruct> trackedSorted) {
+    if (trackedSorted.length < 8) return 0;
+    final mid = trackedSorted.length ~/ 2;
+    final earlier = trackedSorted.sublist(0, mid).where((d) => d.isSpike).length;
+    final recent = trackedSorted.sublist(mid).where((d) => d.isSpike).length;
+    return recent - earlier;
+  }
+
+  Widget _cardWrap(BuildContext context, Widget child,
+      {String? title, String? subtitle}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(8.0, 14.0, 12.0, 8.0),
@@ -431,7 +890,219 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
           width: 1.0,
         ),
       ),
-      child: child,
+      child: title == null
+          ? child
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: EdgeInsets.only(
+                      left: 4.0, bottom: subtitle == null ? 10.0 : 2.0),
+                  child: _sectionHeader(context, title),
+                ),
+                if (subtitle != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4.0, bottom: 10.0),
+                    child: Text(
+                      subtitle,
+                      style: FlutterFlowTheme.of(context).labelSmall.override(
+                            font: GoogleFonts.inter(),
+                            color: FlutterFlowTheme.of(context).secondaryText,
+                          ),
+                    ),
+                  ),
+                child,
+              ],
+            ),
+    );
+  }
+
+  static const _weekdayLetters = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  static const _weekdayNamesShort = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+  ];
+
+  // "This week" mini bar-chart: the trailing 7 tracked days, with the
+  // highest and lowest days ringed and called out below. Only shown on the
+  // 7-day pill (_weeklyView) - a per-day breakdown doesn't add much next to
+  // the 30/60/90-day trend/distribution cards, which already summarize the
+  // whole window.
+  Widget _weekCalendar(BuildContext context, DashboardRecord focus) {
+    final sorted = [...focus.dailyValues]..sort((a, b) => a.day.compareTo(b.day));
+    final weekSlice =
+        sorted.length <= 7 ? sorted : sorted.sublist(sorted.length - 7);
+    final trackedInWeek =
+        weekSlice.where((d) => d.isTracked && !d.isMissing).toList();
+    if (trackedInWeek.length < 2) return const SizedBox.shrink();
+
+    final higher = trackedInWeek.reduce((a, b) => a.value >= b.value ? a : b);
+    final lower = trackedInWeek.reduce((a, b) => a.value <= b.value ? a : b);
+    const higherColor = Color(0xFFFFC533);
+    const lowerColor = kCrystalBlue;
+
+    return _cardWrap(
+      context,
+      title: 'This week',
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                for (final d in weekSlice)
+                  Expanded(
+                    child: _weekDayCell(
+                      context,
+                      d,
+                      isHigher: d.isTracked && d.date == higher.date,
+                      isLower: d.isTracked &&
+                          d.date == lower.date &&
+                          lower.date != higher.date,
+                      higherColor: higherColor,
+                      lowerColor: lowerColor,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12.0),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _weekLegendChip(
+                  context,
+                  color: higherColor,
+                  icon: Icons.arrow_upward_rounded,
+                  label: 'Higher day',
+                  day: higher,
+                ),
+              ),
+              const SizedBox(width: 8.0),
+              Expanded(
+                child: _weekLegendChip(
+                  context,
+                  color: lowerColor,
+                  icon: Icons.arrow_downward_rounded,
+                  label: 'Lower day',
+                  day: lower,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _weekDayCell(
+    BuildContext context,
+    DailyValueStruct d, {
+    required bool isHigher,
+    required bool isLower,
+    required Color higherColor,
+    required Color lowerColor,
+  }) {
+    final theme = FlutterFlowTheme.of(context);
+    final weekday = DateTime.parse(d.date).weekday; // 1 = Monday
+    final tracked = d.isTracked && !d.isMissing;
+    final barColor =
+        tracked ? intensityColorForValue(d.value) : theme.alternate;
+    final ringColor = isHigher ? higherColor : (isLower ? lowerColor : null);
+    final barHeight = tracked ? (d.value.clamp(0.0, 10.0) / 10.0) * 36.0 + 4.0 : 4.0;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _weekdayLetters[weekday - 1],
+          style: TextStyle(
+            fontSize: 11.0,
+            fontWeight: ringColor != null ? FontWeight.w800 : FontWeight.w500,
+            color: ringColor ?? theme.secondaryText,
+          ),
+        ),
+        const SizedBox(height: 6.0),
+        SizedBox(
+          height: 44.0,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              width: 20.0,
+              height: barHeight,
+              decoration: BoxDecoration(
+                color: barColor,
+                borderRadius: BorderRadius.circular(6.0),
+                border: ringColor == null
+                    ? null
+                    : Border.all(color: ringColor, width: 2.0),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4.0),
+        Text(
+          tracked ? d.value.round().toString() : '–',
+          style: TextStyle(fontSize: 9.0, color: theme.secondaryText),
+        ),
+      ],
+    );
+  }
+
+  Widget _weekLegendChip(
+    BuildContext context, {
+    required Color color,
+    required IconData icon,
+    required String label,
+    required DailyValueStruct day,
+  }) {
+    final theme = FlutterFlowTheme.of(context);
+    final weekday = DateTime.parse(day.date).weekday;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10.0),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 12.0, color: color),
+          const SizedBox(width: 6.0),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                  ),
+                ),
+                Text(
+                  '${_weekdayNamesShort[weekday - 1]} · ${day.value.round()}/10',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.0,
+                    color: theme.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -443,6 +1114,155 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
             color: FlutterFlowTheme.of(context).primaryText,
             fontWeight: FontWeight.w700,
           ),
+    );
+  }
+
+  Widget _sectionHeaderRow(BuildContext context, String text,
+      {VoidCallback? onViewAll}) {
+    return Row(
+      children: [
+        Expanded(child: _sectionHeader(context, text)),
+        if (onViewAll != null)
+          TextButton(
+            onPressed: onViewAll,
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 0),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              'View all',
+              style: TextStyle(
+                color: FlutterFlowTheme.of(context).primary,
+                fontWeight: FontWeight.w600,
+                fontSize: 12.0,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // Top 3 discoveries as compact mini-cards (icon + short title + one-line
+  // detail) instead of the full hero+list treatment - "What we noticed"
+  // reads as a quick scan, with "View all" (see _showAllDiscoveries) for
+  // the rest instead of pushing every discovery into the main scroll.
+  Widget _noticedGrid(BuildContext context, List<_Discovery> top) {
+    // Every card reserves fixed-height slots for its title (2 lines) and
+    // detail (1 line) - see _miniDiscoveryCard - so all cards come out the
+    // same height on their own. That means a plain Row works here; no need
+    // for IntrinsicHeight + stretch (which previously sized the row from a
+    // dry-layout pass that could be a hair short of the real layout, an
+    // easy way to get a 1px "bottom overflowed" warning on some cards).
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < top.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8.0),
+          Expanded(child: _miniDiscoveryCard(context, top[i])),
+        ],
+      ],
+    );
+  }
+
+  Widget _miniDiscoveryCard(BuildContext context, _Discovery d) {
+    final theme = FlutterFlowTheme.of(context);
+    final color = d.color ?? theme.primary;
+    return InkWell(
+      onTap: d.why == null ? null : () => _showWhy(context, d),
+      borderRadius: BorderRadius.circular(14.0),
+      child: Container(
+        padding: const EdgeInsets.all(10.0),
+        decoration: BoxDecoration(
+          color: theme.secondaryBackground,
+          borderRadius: BorderRadius.circular(14.0),
+          border: Border.all(color: theme.alternate, width: 1.0),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6.0),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(d.icon, color: color, size: 14.0),
+            ),
+            const SizedBox(height: 8.0),
+            // Fixed-height slots (2 lines for the title, 1 for the detail)
+            // regardless of how much of that the text actually uses, so
+            // every mini-card comes out the same height without relying on
+            // an IntrinsicHeight-stretched row to force it.
+            SizedBox(
+              height: 32.0,
+              child: Text(
+                d.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.bodySmall.override(
+                  font: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                  color: theme.primaryText,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.0,
+                ),
+              ),
+            ),
+            const SizedBox(height: 3.0),
+            SizedBox(
+              height: 14.0,
+              child: Text(
+                d.detail,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.labelSmall.override(
+                  font: GoogleFonts.inter(),
+                  color: theme.secondaryText,
+                  fontSize: 10.0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAllDiscoveries(BuildContext context, List<_Discovery> discoveries) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
+      ),
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        maxChildSize: 0.9,
+        builder: (sheetContext, scrollController) => Padding(
+          padding: const EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 28.0),
+          child: ListView(
+            controller: scrollController,
+            children: [
+              Text(
+                'What we noticed',
+                style: FlutterFlowTheme.of(context).titleSmall.override(
+                      fontWeight: FontWeight.w700,
+                      color: FlutterFlowTheme.of(context).primaryText,
+                    ),
+              ),
+              const SizedBox(height: 14.0),
+              _heroCard(context, discoveries.first),
+              ...discoveries.skip(1).map((d) => Padding(
+                    padding: const EdgeInsets.only(top: 12.0),
+                    child: _discoveryCard(context, d),
+                  )),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -762,7 +1582,11 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
 
   // ---- 7-day view: derived client-side from the last30 doc's dailyValues. ----
 
-  Widget _weeklyView(BuildContext context, DashboardRecord? focus30) {
+  Widget _weeklyView(
+    BuildContext context,
+    DashboardRecord? focus30,
+    List<DashboardRecord> docs,
+  ) {
     if (focus30 == null || focus30.dailyValues.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -787,97 +1611,120 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
     final spikes = weekSlice.where((d) => d.isSpike).length;
     final crystalDays = tracked.where((d) => d.value <= 0).length;
     final histogram = intensityHistogram(tracked);
-    final mode = modeIntensityValue(histogram);
     final severeStreak = _trailingSevereStreak(weekSlice);
 
+    // Same lead-with-narrative order as the 30/60/90-day view, at a smaller
+    // scale: noticed cards first, then intervention/connections highlights,
+    // then the demoted stat row + week calendar + trend, and finally the
+    // intensity distribution tucked behind "Explore your data".
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _resultsHeading(context, focus30.metricLabel),
-        const SizedBox(height: 14.0),
-        HeadlineMetricTiles(metrics: [
-          HeadlineMetric(
-            label: 'Average intensity',
-            value: meanIntensity == null ? '—' : meanIntensity.toStringAsFixed(1),
-            icon: Icons.show_chart_rounded,
-            color: FlutterFlowTheme.of(context).primary,
-          ),
-          HeadlineMetric(
-            label: 'Spikes',
-            value: '$spikes',
-            icon: Icons.bolt_rounded,
-            color: const Color(0xFFFFC533),
-          ),
-          HeadlineMetric(
-            label: 'Crystal clear days',
-            value: '$crystalDays',
-            icon: Icons.spa_outlined,
-            color: kCrystalBlue,
-          ),
-          HeadlineMetric(
-            label: 'Most common intensity',
-            value: mode == null ? '—' : '$mode',
-            sublabel: mode == null ? null : intensityCategoryLabel(mode.toDouble()),
-            icon: Icons.bar_chart_rounded,
-            color: mode == null
-                ? FlutterFlowTheme.of(context).secondaryText
-                : intensityColorForValue(mode.toDouble()),
-          ),
-        ]),
-        const SizedBox(height: 22.0),
-        _sectionHeader(context, '${_shortLabel(focus30.metricLabel)} trend'),
-        const SizedBox(height: 8.0),
-        _cardWrap(context, SymptomTrendChart(values: weekSlice, height: 130.0)),
-        const SizedBox(height: 22.0),
-        _sectionHeader(context, 'Intensity distribution'),
-        const SizedBox(height: 8.0),
-        _cardWrap(context, IntensityDistributionChart(histogram: histogram, height: 110.0)),
-        const SizedBox(height: 22.0),
-        _sectionHeader(context, 'What we noticed'),
-        const SizedBox(height: 8.0),
-        if (trackedCount < 5)
-          _emptyCard(
-            context,
-            'Log a few more days this week to unlock your insight cards.',
-          )
-        else ...[
-          if (severeStreak > 0)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12.0),
-              child: _discoveryCard(
-                context,
-                _Discovery(
-                  kind: _DiscoveryKind.alert,
-                  slotKey: 'weekly_alert',
-                  icon: Icons.warning_amber_rounded,
-                  title: "You're on a $severeStreak-day streak of severe days",
-                  detail: 'Worth flagging if it continues.',
-                  color: _alertColor,
-                  score: 0,
+        const SizedBox(height: 18.0),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sectionHeader(context, 'What Somatica noticed'),
+              const SizedBox(height: 10.0),
+              if (trackedCount < 5)
+                _emptyCard(
+                  context,
+                  'Log a few more days this week to unlock your insight '
+                  'cards.',
+                )
+              else ...[
+                if (severeStreak > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: _discoveryCard(
+                      context,
+                      _Discovery(
+                        kind: _DiscoveryKind.alert,
+                        slotKey: 'weekly_alert',
+                        icon: Icons.warning_amber_rounded,
+                        title:
+                            "You're on a $severeStreak-day streak of severe days",
+                        detail: 'Worth flagging if it continues.',
+                        color: _alertColor,
+                        score: 0,
+                      ),
+                    ),
+                  ),
+                if (spikes > 0)
+                  _discoveryCard(
+                    context,
+                    _Discovery(
+                      kind: _DiscoveryKind.info,
+                      slotKey: 'weekly_spike',
+                      icon: Icons.bolt_rounded,
+                      title:
+                          '$spikes notable spike${spikes == 1 ? '' : 's'} this week',
+                      detail: 'Worth a closer look in your diary.',
+                      score: 0,
+                    ),
+                  ),
+                if (spikes == 0 && severeStreak == 0)
+                  _emptyCard(context, 'Nothing urgent this week.'),
+                const SizedBox(height: 8.0),
+                _note(
+                  context,
+                  'Weekday and trend insight cards need more history — '
+                  'switch to 30 days or more for those.',
                 ),
-              ),
-            ),
-          if (spikes > 0)
-            _discoveryCard(
-              context,
-              _Discovery(
-                kind: _DiscoveryKind.info,
-                slotKey: 'weekly_spike',
-                icon: Icons.bolt_rounded,
-                title: '$spikes notable spike${spikes == 1 ? '' : 's'} this week',
-                detail: 'Worth a closer look in your diary.',
-                score: 0,
-              ),
-            ),
-          if (spikes == 0 && severeStreak == 0)
-            _emptyCard(context, 'Nothing urgent this week.'),
-          const SizedBox(height: 8.0),
-          _note(
-            context,
-            'Weekday and trend insight cards need more history — switch to '
-            '30 days or more for those.',
+              ],
+            ],
           ),
-        ],
+        ),
+        _interventionHighlight(context, focus30),
+        _strongestConnectionsSection(context, focus30, docs),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your ${_shortLabel(focus30.metricLabel)} this week',
+                style: FlutterFlowTheme.of(context).labelMedium.override(
+                      font: GoogleFonts.interTight(fontWeight: FontWeight.w700),
+                      color: FlutterFlowTheme.of(context).primaryText,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 10.0),
+              HeadlineMetricTiles(metrics: [
+                HeadlineMetric(
+                  label: 'Average intensity',
+                  value: meanIntensity == null
+                      ? '—'
+                      : meanIntensity.toStringAsFixed(1),
+                  color: FlutterFlowTheme.of(context).primary,
+                ),
+                HeadlineMetric(
+                  label: 'Spikes',
+                  value: '$spikes',
+                  color: const Color(0xFFFFC533),
+                ),
+                HeadlineMetric(
+                  label: 'Crystal clear days',
+                  value: '$crystalDays',
+                  color: kCrystalBlue,
+                  footer: crystalDays > 0
+                      ? const Icon(Icons.auto_awesome,
+                          size: 14.0, color: kCrystalBlue)
+                      : null,
+                ),
+              ]),
+              const SizedBox(height: 12.0),
+              _weekCalendar(context, focus30),
+              const SizedBox(height: 12.0),
+              SymptomTrendChart(values: weekSlice, height: 130.0),
+            ],
+          ),
+        ),
+        _exploreYourData(context, focus30, histogram),
       ],
     );
   }

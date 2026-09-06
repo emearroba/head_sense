@@ -31,8 +31,20 @@ class _ResultsWidgetState extends State<ResultsWidget> {
   late ResultsModel _model;
   final scaffoldKey = GlobalKey<ScaffoldState>();
   bool _seeding = false;
-  // 0 = My symptoms, 1 = Connections.
+  // 0 = Overview, 1 = Connections, 2 = Interventions.
   int _mainTabIndex = 0;
+  // Owned here (not inside PatternInsightsPanel) so the selectors shown
+  // above the Overview / Connections tabs and the panel underneath can
+  // never disagree about which window/metric is selected. Connections
+  // keeps its own independent period + anchor symptom.
+  String _selectedPeriod = 'last30';
+  String _selectedFocusKey = 'headache_intensity';
+  // Set (and _mainTabIndex flipped to 1) when the user taps a "strongest
+  // connections" row on Overview - preloads that pair into Connections'
+  // Advanced section. Bumped on every tap (even to the same key) via a
+  // trailing counter so ConnectionsPanel's key changes and re-applies it.
+  String? _connectionsInitialCompareKey;
+  int _connectionsInitialCompareNonce = 0;
 
   @override
   void initState() {
@@ -48,138 +60,208 @@ class _ResultsWidgetState extends State<ResultsWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: scaffoldKey,
-      backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-      appBar: AppBar(
-        backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
-        automaticallyImplyLeading: false,
-        title: Text(
-          'Patterns',
-          style: FlutterFlowTheme.of(context).headlineMedium.override(
-                font: GoogleFonts.interTight(
-                  fontWeight:
-                      FlutterFlowTheme.of(context).headlineMedium.fontWeight,
-                ),
-                color: FlutterFlowTheme.of(context).primaryText,
-                fontSize: 22.0,
-              ),
-        ),
-        elevation: 0.0,
-      ),
-      body: SafeArea(
-        child: StreamBuilder<UsersRecord>(
-          stream: UsersRecord.getDocument(currentUserReference!),
-          builder: (context, userSnapshot) {
-            if (!userSnapshot.hasData) {
-              return Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    FlutterFlowTheme.of(context).primary,
-                  ),
-                ),
-              );
-            }
-            final user = userSnapshot.data!;
-            final isPaying = user.plan == 'core' || user.plan == 'premium';
+    return StreamBuilder<UsersRecord>(
+      stream: UsersRecord.getDocument(currentUserReference!),
+      builder: (context, userSnapshot) {
+        final user = userSnapshot.data;
+        final isPaying =
+            user != null && (user.plan == 'core' || user.plan == 'premium');
 
-            return StreamBuilder<List<DiaryEntriesRecord>>(
-              stream: queryDiaryEntriesRecord(
-                queryBuilder: (q) => q
-                    .where('userRef', isEqualTo: currentUserReference)
-                    .where('isComplete', isEqualTo: true),
-              ),
-              builder: (context, entriesSnapshot) {
-                if (!entriesSnapshot.hasData) {
-                  return Center(
+        return Scaffold(
+          key: scaffoldKey,
+          backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+          appBar: AppBar(
+            backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+            automaticallyImplyLeading: false,
+            toolbarHeight: 68.0,
+            title: const custom_widgets.AppSectionHeader(
+              title: 'Insights',
+              subtitle: 'What your body is telling you',
+            ),
+            elevation: 0.0,
+          ),
+          body: SafeArea(
+            child: user == null
+                ? Center(
                     child: CircularProgressIndicator(
                       valueColor: AlwaysStoppedAnimation<Color>(
                         FlutterFlowTheme.of(context).primary,
                       ),
                     ),
-                  );
-                }
-                final dateKeys = entriesSnapshot.data!
-                    .map((e) => e.entryDateKey)
-                    .where((k) => k.isNotEmpty)
-                    .toSet() // de-dupe, just in case
-                    .toList()
-                  ..sort();
-                final totalDays = dateKeys.length;
+                  )
+                : StreamBuilder<List<DiaryEntriesRecord>>(
+                    stream: queryDiaryEntriesRecord(
+                      queryBuilder: (q) => q
+                          .where('userRef', isEqualTo: currentUserReference)
+                          .where('isComplete', isEqualTo: true),
+                    ),
+                    builder: (context, entriesSnapshot) {
+                      if (!entriesSnapshot.hasData) {
+                        return Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              FlutterFlowTheme.of(context).primary,
+                            ),
+                          ),
+                        );
+                      }
+                      final dateKeys = entriesSnapshot.data!
+                          .map((e) => e.entryDateKey)
+                          .where((k) => k.isNotEmpty)
+                          .toSet() // de-dupe, just in case
+                          .toList()
+                        ..sort();
+                      final totalDays = dateKeys.length;
 
-                return ListView(
-                  padding: const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 120.0),
-                  children: [
-                    const custom_widgets.TrackingProgressCard(),
-                    const SizedBox(height: 18),
-                    Divider(
-                      height: 1.0,
-                      color: FlutterFlowTheme.of(context).alternate,
-                    ),
-                    const SizedBox(height: 18),
-                    if (isPaying) ...[
-                      _mainTabs(context),
-                      const SizedBox(height: 16.0),
-                      if (_mainTabIndex == 0)
-                        custom_widgets.PatternInsightsPanel(
-                          trackedMetricKeys: user.trackedMetricKeys,
-                          userPlan: user.plan,
-                        )
-                      else
-                        custom_widgets.ConnectionsPanel(
-                          trackedMetricKeys: user.trackedMetricKeys,
-                          userPlan: user.plan,
-                        ),
-                    ] else
-                      _lockedAnalysisCard(context, totalDays),
-                    const SizedBox(height: 12.0),
-                    // TEMPORARY dev-only affordance to backfill fake diary
-                    // days for testing the pattern gates - remove once no
-                    // longer needed. Shown regardless of plan so it stays
-                    // usable after flipping to premium too.
-                    OutlinedButton(
-                      onPressed: _seeding
-                          ? null
-                          : () => _seedAverageUserHistory(
-                              context, dateKeys, user.trackedMetricKeys),
-                      child: _seeding
-                          ? const Row(
-                              mainAxisSize: MainAxisSize.min,
+                      return ListView(
+                        padding:
+                            const EdgeInsets.fromLTRB(20.0, 16.0, 20.0, 120.0),
+                        children: [
+                          if (isPaying) ...[
+                            Row(
                               children: [
-                                SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2.0),
+                                Text(
+                                  'Looking at',
+                                  style: FlutterFlowTheme.of(context)
+                                      .labelSmall
+                                      .override(
+                                        font: GoogleFonts.inter(),
+                                        color: FlutterFlowTheme.of(context)
+                                            .secondaryText,
+                                      ),
                                 ),
-                                SizedBox(width: 10.0),
-                                Text('Seeding…'),
+                                const SizedBox(width: 8.0),
+                                StreamBuilder<List<MetricsRecord>>(
+                                  stream: queryMetricsRecord(
+                                    queryBuilder: (m) => m
+                                        .where('isActive', isEqualTo: true)
+                                        .orderBy('order'),
+                                  ),
+                                  builder: (context, metricsSnapshot) {
+                                    return custom_widgets
+                                        .SymptomSelectorBubble(
+                                      metrics: metricsSnapshot.data ?? [],
+                                      trackedKeys:
+                                          user.trackedMetricKeys.toSet(),
+                                      alwaysOnKeys: const {
+                                        'headache_intensity',
+                                        'analgesia',
+                                      },
+                                      selectedKey: _selectedFocusKey,
+                                      onSelected: (key) => setState(
+                                          () => _selectedFocusKey = key),
+                                    );
+                                  },
+                                ),
                               ],
-                            )
-                          : const Text(
-                              'DEV: seed ~90d average-user history (with gaps)'),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        ),
-      ),
+                            ),
+                            const SizedBox(height: 16.0),
+                            custom_widgets.PeriodSelectorBubble(
+                              selectedPeriod: _selectedPeriod,
+                              onPeriodChanged: (p) =>
+                                  setState(() => _selectedPeriod = p),
+                              isPremium: user.plan == 'premium',
+                            ),
+                            const SizedBox(height: 10.0),
+                            _mainTabs(context),
+                            const SizedBox(height: 16.0),
+                            if (_mainTabIndex == 0)
+                              custom_widgets.PatternInsightsPanel(
+                                trackedMetricKeys: user.trackedMetricKeys,
+                                selectedPeriod: _selectedPeriod,
+                                onPeriodChanged: (p) =>
+                                    setState(() => _selectedPeriod = p),
+                                selectedFocusKey: _selectedFocusKey,
+                                totalDays: totalDays,
+                                onOpenConnection: (otherKey) => setState(() {
+                                  _connectionsInitialCompareKey = otherKey;
+                                  _connectionsInitialCompareNonce++;
+                                  _mainTabIndex = 1;
+                                }),
+                                onOpenConnectionsTab: () =>
+                                    setState(() => _mainTabIndex = 1),
+                                onOpenInterventionsTab: () =>
+                                    setState(() => _mainTabIndex = 2),
+                              )
+                            else if (_mainTabIndex == 1)
+                              custom_widgets.ConnectionsPanel(
+                                key: ValueKey(
+                                    'connections_$_connectionsInitialCompareNonce'),
+                                trackedMetricKeys: user.trackedMetricKeys,
+                                selectedFocusKey: _selectedFocusKey,
+                                selectedPeriod: _selectedPeriod,
+                                initialCompareKey:
+                                    _connectionsInitialCompareKey,
+                              )
+                            else
+                              custom_widgets.InterventionsComparisonPanel(
+                                selectedFocusKey: _selectedFocusKey,
+                                selectedPeriod: _selectedPeriod,
+                                totalDays: totalDays,
+                              ),
+                          ] else
+                            _lockedAnalysisCard(context, totalDays),
+                          const SizedBox(height: 12.0),
+                          // TEMPORARY dev-only affordance to backfill fake
+                          // diary days for testing the pattern gates -
+                          // remove once no longer needed. Shown regardless
+                          // of plan so it stays usable after flipping to
+                          // premium too.
+                          OutlinedButton(
+                            onPressed: _seeding
+                                ? null
+                                : () => _seedAverageUserHistory(
+                                    context, dateKeys, user.trackedMetricKeys),
+                            child: _seeding
+                                ? const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2.0),
+                                      ),
+                                      SizedBox(width: 10.0),
+                                      Text('Seeding…'),
+                                    ],
+                                  )
+                                : const Text(
+                                    'DEV: seed ~90d average-user history (with gaps)'),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+        );
+      },
     );
   }
 
-  // Two main tabs below the "Patterns" header: single-symptom results vs.
-  // cross-symptom relationships. Deliberately compact (one row, no extra
-  // caption) since filters/navigation chrome should take minimal space —
-  // the results underneath are what should dominate the screen.
+  // Three main tabs below the "Patterns" header: single-symptom results,
+  // cross-symptom relationships, and before/after intervention comparisons.
+  // Deliberately compact (one row, no extra caption) since filters/
+  // navigation chrome should take minimal space — the results underneath
+  // are what should dominate the screen. One continuous rounded track
+  // holding all segments (same construction as PeriodSelectorBubble) so the
+  // tabs read as a single split bubble rather than separate ones.
   Widget _mainTabs(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: _mainTabButton(context, 0, 'My symptoms')),
-        const SizedBox(width: 8.0),
-        Expanded(child: _mainTabButton(context, 1, 'Connections ✦')),
-      ],
+    final theme = FlutterFlowTheme.of(context);
+    return Container(
+      height: 40.0,
+      padding: const EdgeInsets.all(3.0),
+      decoration: BoxDecoration(
+        color: theme.secondaryBackground,
+        borderRadius: BorderRadius.circular(13.0),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: _mainTabButton(context, 0, 'Overview')),
+          Expanded(child: _mainTabButton(context, 1, 'Connections')),
+          Expanded(child: _mainTabButton(context, 2, 'Interventions')),
+        ],
+      ),
     );
   }
 
@@ -188,12 +270,12 @@ class _ResultsWidgetState extends State<ResultsWidget> {
     final theme = FlutterFlowTheme.of(context);
     return InkWell(
       onTap: () => setState(() => _mainTabIndex = index),
-      borderRadius: BorderRadius.circular(14.0),
+      borderRadius: BorderRadius.circular(10.0),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF123C45) : const Color(0xFF1A2A33),
-          borderRadius: BorderRadius.circular(14.0),
+          color: selected ? const Color(0xFF123C45) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10.0),
           border: Border.all(
             color: selected ? theme.primary : Colors.transparent,
             width: 1.0,
@@ -202,8 +284,10 @@ class _ResultsWidgetState extends State<ResultsWidget> {
         child: Text(
           label,
           textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: 13.0,
+            fontSize: 12.0,
             fontWeight: FontWeight.w700,
             color: selected ? theme.primary : theme.primaryText,
           ),
@@ -417,8 +501,9 @@ class _ResultsWidgetState extends State<ResultsWidget> {
       }
       for (final metric in numericMetrics) {
         final min = metric.scaleMin.toDouble();
-        final max =
-            metric.scaleMax > metric.scaleMin ? metric.scaleMax.toDouble() : min + 10.0;
+        final max = metric.scaleMax > metric.scaleMin
+            ? metric.scaleMax.toDouble()
+            : min + 10.0;
         final value = min + rand.nextDouble() * (max - min);
         batchSet(
           ResponsesRecord.createDoc(entryRef, id: metric.metricKey),

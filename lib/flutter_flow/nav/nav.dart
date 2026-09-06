@@ -11,6 +11,7 @@ import '/auth/base_auth_user_provider.dart';
 
 import '/backend/push_notifications/push_notifications_handler.dart'
     show PushNotificationsHandler;
+import '/custom_code/widgets/index.dart' as custom_widgets;
 import '/main.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/lat_lng.dart';
@@ -154,6 +155,11 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           name: SettingsWidget.routeName,
           path: SettingsWidget.routePath,
           builder: (context, params) => SettingsWidget(),
+        ),
+        FFRoute(
+          name: InterventionsWidget.routeName,
+          path: InterventionsWidget.routePath,
+          builder: (context, params) => InterventionsWidget(),
         ),
         FFRoute(
           name: OnboardingGoalsWidget.routeName,
@@ -395,12 +401,11 @@ class FFRoute {
               : builder(context, ffParams);
           final child = appStateNotifier.loading
               ? Container(
-                  color: Colors.black,
-                  child: Center(
-                    child: Image.asset(
-                      'assets/images/somatika_fingerprint2.png',
-                      width: 300.0,
-                      fit: BoxFit.cover,
+                  color: FlutterFlowTheme.of(context).primaryBackground,
+                  child: const Center(
+                    child: custom_widgets.OrbitLogo(
+                      width: 160.0,
+                      height: 160.0,
                     ),
                   ),
                 )
