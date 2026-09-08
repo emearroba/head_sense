@@ -102,7 +102,7 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
     return StreamBuilder<List<DashboardRecord>>(
       stream: queryDashboardRecord(
         queryBuilder: (q) => q
-            .where('userRef', isEqualTo: currentUserReference)
+            .where('subjectId', isEqualTo: currentSubjectId)
             .where('periodType', isEqualTo: queryPeriod),
       ),
       builder: (context, snapshot) {

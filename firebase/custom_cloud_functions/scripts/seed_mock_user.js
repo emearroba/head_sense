@@ -14,6 +14,7 @@
 //   node <path to this file>
 
 const path = require("path");
+const crypto = require("crypto");
 const admin = require("firebase-admin");
 
 // This script writes ~90 days x 31 metrics of diary_entries/responses docs.
@@ -38,12 +39,20 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const authAdmin = admin.auth();
 
-// Reuses the REAL aggregation logic (temporarily exported) so the
-// `dashboard` docs the app reads are byte-for-byte what the deployed
-// Cloud Function would have produced.
+// Reuses the REAL aggregate math (buildDashboardDoc - category/streak/spike
+// computation, exported for exactly this purpose) so the `dashboard` docs
+// the app reads are byte-for-byte what the deployed Cloud Function would
+// have produced. Doesn't replay through the incremental per-day update path
+// (updateDashboardDayIncremental) - that would mean hundreds of sequential
+// read-then-write round trips just to seed one metric's history, when this
+// script already has the full 90 days in memory at once and can hand
+// buildDashboardDoc a complete dailyValues array directly, in one shot.
 const {
   dateKeyFromDate,
-  calculateDashboardForPeriod,
+  getCategory,
+  getBarColor,
+  buildDashboardDoc,
+  WEEKDAYS_SHORT,
 } = require(path.join(
   "C:\\Users\\jmsej\\HeadSense\\head_sense\\firebase\\custom_cloud_functions",
   "update_dashboard_metric.js",
@@ -198,6 +207,69 @@ function generateDayValues(state, isPeriodDay) {
   return values;
 }
 
+// Builds one period's dailyValues array directly from the in-memory
+// dayByDateKey map (no Firestore reads) - the bulk-seeding counterpart to
+// update_dashboard_metric.js's updateDashboardDayIncremental, which instead
+// splices one day at a time into a doc it reads back. Same window/category/
+// spike shape, so buildDashboardDoc (imported) produces an identical doc.
+function buildDailyValuesForPeriod({ metricKey, periodDays, dayByDateKey }) {
+  const periodEnd = new Date();
+  periodEnd.setUTCHours(23, 59, 59, 999);
+  const periodStart = new Date(periodEnd);
+  periodStart.setUTCDate(periodStart.getUTCDate() - (periodDays - 1));
+  periodStart.setUTCHours(0, 0, 0, 0);
+
+  const dailyValues = [];
+  let previousValue = null;
+
+  for (let i = 0; i < periodDays; i++) {
+    const currentDate = new Date(periodStart);
+    currentDate.setUTCDate(periodStart.getUTCDate() + i);
+    const dKey = dateKeyFromDate(currentDate);
+
+    const dayOfWeekIndex = currentDate.getUTCDay();
+    const dayOfWeek = WEEKDAYS_SHORT[dayOfWeekIndex];
+
+    const values = dayByDateKey.get(dKey);
+    const rawValue = values ? values[metricKey] : null;
+    const value = typeof rawValue === "number" && !isNaN(rawValue) ? rawValue : null;
+    const usedPainkiller = !!(values && values.analgesia > 0);
+
+    const category = getCategory(value);
+    const barColor = getBarColor(value);
+
+    let deltaFromPreviousDay = null;
+    let isSpike = false;
+    if (value !== null && previousValue !== null) {
+      deltaFromPreviousDay = value - previousValue;
+      isSpike = deltaFromPreviousDay >= 2;
+    }
+
+    dailyValues.push({
+      day: i + 1,
+      date: dKey,
+      dayOfWeek,
+      dayOfWeekIndex,
+      value,
+      barColor,
+      category,
+      isTracked: value !== null,
+      usedPainkiller,
+      isCrystal: category === "crystal",
+      isMild: category === "mild",
+      isModerate: category === "moderate",
+      isSevere: category === "severe",
+      isMissing: category === "missing",
+      deltaFromPreviousDay,
+      isSpike,
+    });
+
+    if (value !== null) previousValue = value;
+  }
+
+  return { dailyValues, periodStart, periodEnd };
+}
+
 async function commitInChunks(ops) {
   const CHUNK = 450;
   for (let i = 0; i < ops.length; i += CHUNK) {
@@ -228,10 +300,29 @@ async function main() {
   const uid = userRecord.uid;
   const userRef = db.collection("users").doc(uid);
 
+  // Real accounts get a subjectId from the assignSubjectId auth trigger
+  // (functions.auth.user().onCreate). This script creates the Auth user
+  // directly via the Admin SDK and writes Firestore data immediately after,
+  // so it can't rely on that trigger having landed yet (a race against the
+  // Functions emulator) - it assigns one itself instead, reusing the
+  // existing one if this script has already run against this mock user.
+  const existingUserSnap = await userRef.get();
+  const subjectId =
+    (existingUserSnap.exists && existingUserSnap.data().subjectId) ||
+    crypto.randomUUID();
+  await Promise.all([
+    authAdmin.setCustomUserClaims(uid, { subjectId }),
+    userRef.set({ subjectId }, { merge: true }),
+  ]);
+  console.log(`  subjectId: ${subjectId}`);
+
   const cycleOffset = randInt(0, 27);
   const state = { prevStress: 4, prevSleep: 4 };
 
   const ops = [];
+  // Per-day generated values, keyed by dateKey, for the dashboard-building
+  // pass below - only tracked (non-missing) days are present.
+  const dayByDateKey = new Map();
   let lastCompletedDateKey = "";
   let trailingStreak = 0;
 
@@ -248,15 +339,16 @@ async function main() {
     const cycleDay = (i + cycleOffset) % 28;
     const isPeriodDay = cycleDay < 5;
     const values = generateDayValues(state, isPeriodDay);
+    dayByDateKey.set(dateKey, values);
 
-    const entryRef = db.collection("diary_entries").doc(`${uid}_${dateKey}`);
+    const entryRef = db.collection("diary_entries").doc(`${subjectId}_${dateKey}`);
     ops.push({
       ref: entryRef,
       data: {
         entryDate: admin.firestore.Timestamp.fromDate(date),
         entryDateKey: dateKey,
         isComplete: true,
-        userRef,
+        subjectId,
         completedAt: admin.firestore.Timestamp.fromDate(date),
         coinsEarned: 0,
       },
@@ -286,6 +378,7 @@ async function main() {
   await userRef.set(
     {
       uid,
+      subjectId,
       email: MOCK_EMAIL,
       display_name: "Mock 90-Day User",
       plan: "premium",
@@ -302,25 +395,36 @@ async function main() {
     { merge: true },
   );
 
-  console.log("Computing dashboard aggregates (real Cloud Function logic, called directly)...");
+  console.log("Computing dashboard aggregates (real buildDashboardDoc logic, called directly)...");
   const scaleMetrics = METRICS.filter((m) => m.type === "scale");
-  let done = 0;
+  const dashboardOps = [];
   for (const metric of scaleMetrics) {
     for (const period of PERIODS) {
-      await calculateDashboardForPeriod({
-        userRef,
-        userId: uid,
+      const { dailyValues, periodStart, periodEnd } = buildDailyValuesForPeriod({
+        metricKey: metric.key,
+        periodDays: period.days,
+        dayByDateKey,
+      });
+      const doc = buildDashboardDoc({
+        subjectId,
         metricKey: metric.key,
         metricLabel: metric.label,
         metricRef: db.collection("metrics").doc(metric.docId || metric.key),
         trackingDay: TOTAL_DAYS,
         periodType: period.type,
         periodDays: period.days,
+        periodStart,
+        periodEnd,
+        dailyValues,
       });
-      done++;
+      dashboardOps.push({
+        ref: db.collection("dashboard").doc(`${subjectId}_${metric.key}_${period.type}`),
+        data: doc,
+      });
     }
-    console.log(`  ${metric.key} done (${done}/${scaleMetrics.length * PERIODS.length})`);
   }
+  console.log(`Writing ${dashboardOps.length} dashboard docs...`);
+  await commitInChunks(dashboardOps);
 
   console.log("\nDone.");
   console.log(`UID: ${uid}`);

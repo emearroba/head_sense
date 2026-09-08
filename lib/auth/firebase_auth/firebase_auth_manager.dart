@@ -10,6 +10,7 @@ import '../../flutter_flow/flutter_flow_util.dart';
 import '/backend/backend.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:stream_transform/stream_transform.dart';
+import 'auth_util.dart' show ensureSubjectIdReady;
 import 'anonymous_auth.dart';
 import 'apple_auth.dart';
 import 'email_auth.dart';
@@ -309,6 +310,15 @@ class FirebaseAuthManager extends AuthManager
       final userCredential = await signInFunc();
       if (userCredential?.user != null) {
         await maybeCreateUser(userCredential!.user!);
+        // Must run after maybeCreateUser, not concurrently with it - it
+        // merges `subjectId` onto the users/{uid} doc, and maybeCreateUser's
+        // own write for a brand-new account is a full (non-merge) `.set()`
+        // that would silently wipe a subjectId merged in first. Failure
+        // here shouldn't block sign-in: worst case, the diary page's own
+        // retry (see daily_diary_page_widget.dart) covers it later.
+        try {
+          await ensureSubjectIdReady();
+        } catch (_) {}
       }
       return userCredential == null
           ? null

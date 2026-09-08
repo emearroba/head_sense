@@ -1,18 +1,22 @@
 // Episode-based analytics for the Connections tab's per-connection detail
 // view (connection_detail_sheet.dart + episode_timeline_chart.dart). Kept
 // separate from symptom_analytics.dart (which owns the pairwise correlation
-// engine) since this operates on top of it: an "episode" is a run of
-// consecutive days where the anchor metric spikes above the person's own
-// baseline, and these helpers describe what happens around those runs.
+// engine) since this operates on top of it: an "episode" is a single spike
+// day of the anchor metric, and these helpers describe what happens around
+// each one.
 import 'dart:math';
 
 import '/backend/backend.dart';
 import 'symptom_analytics.dart';
 
-/// A run of consecutive tracked days where the anchor metric was at least
-/// [Episode]'s originating threshold above the person's baseline (see
-/// [detectEpisodes]). [start] is offset 0 for the Timeline view - the
-/// mockup anchors -3d..+3d on the first day of the episode, not its peak.
+/// A single spike day of the anchor metric - one per qualifying day, never
+/// merged with adjacent qualifying days (a spike is valid even if it only
+/// lasts one day, and two spikes on consecutive days are two separate
+/// events, each getting their own -windowDays..+windowDays look-around, not
+/// one shared window). [start] and [end] are the same date; kept as a
+/// start/end pair (rather than a single `date`) so this still drops into
+/// [buildEpisodeTimeline]/[buildConnectionSummary] and
+/// [EpisodeTimelineChart] unchanged, all of which only ever read [start].
 class Episode {
   Episode({required this.start, required this.end, required this.peakValue});
 
@@ -23,50 +27,21 @@ class Episode {
   int get lengthDays => end.difference(start).inDays + 1;
 }
 
-/// Groups [anchor]'s tracked days into episodes: a day qualifies once its
-/// value is at least [deltaAboveMean] points above the anchor's own
-/// `meanIntensityTrackedDays`, and calendar-adjacent qualifying days merge
-/// into one episode. A missing (untracked) day, or a non-qualifying tracked
-/// day, breaks a run even if the next qualifying day is otherwise close by -
-/// deliberately conservative so episodes reflect confirmed data, not gaps.
-List<Episode> detectEpisodes(
-  DashboardRecord anchor, {
-  double deltaAboveMean = 2.0,
-}) {
-  final threshold = anchor.meanIntensityTrackedDays + deltaAboveMean;
-  final tracked = anchor.dailyValues.where((d) => d.isTracked).toList()
-    ..sort((a, b) => a.day.compareTo(b.day));
-
-  final episodes = <Episode>[];
-  DateTime? runStart;
-  DateTime? runEnd;
-  var runPeak = 0.0;
-
-  void closeRun() {
-    if (runStart != null && runEnd != null) {
-      episodes.add(Episode(start: runStart!, end: runEnd!, peakValue: runPeak));
-    }
-    runStart = null;
-    runEnd = null;
-    runPeak = 0.0;
-  }
-
-  for (final d in tracked) {
-    final date = DateTime.parse(d.date);
-    if (d.value >= threshold) {
-      if (runEnd != null && date.difference(runEnd!).inDays > 1) {
-        closeRun();
-      }
-      runStart ??= date;
-      runEnd = date;
-      if (d.value > runPeak) runPeak = d.value;
-    } else {
-      closeRun();
-    }
-  }
-  closeRun();
-
-  return episodes;
+/// One [Episode] per day [anchor] recorded a spike, using the exact same
+/// `isSpike` the "N Spikes" headline stat is built from (see
+/// update_dashboard_metric.js: a day-over-day jump of at least 2 points from
+/// the previous *tracked* day - not a fixed level above the person's
+/// average). Deliberately not merged/deduplicated when consecutive days both
+/// spike - each is its own event with its own before/after window.
+List<Episode> detectEpisodes(DashboardRecord anchor) {
+  return [
+    for (final d in anchor.dailyValues.where((d) => d.isTracked && d.isSpike))
+      Episode(
+        start: DateTime.parse(d.date),
+        end: DateTime.parse(d.date),
+        peakValue: d.value,
+      ),
+  ];
 }
 
 /// One point on the Timeline chart's -windowDays..+windowDays x-axis:
@@ -165,7 +140,15 @@ ConnectionSummaryStats buildConnectionSummary(
   };
   final isBoolean = otherByDate.values.isNotEmpty &&
       otherByDate.values.every((v) => v == 0.0 || v == 1.0);
-  final offset = connection.lagDays.clamp(-windowDays, windowDays);
+  // connection.lagDays is "days the *other* metric leads the anchor by" (see
+  // symptom_analytics.dart) - so relative to the anchor episode's start
+  // date, the other metric's date is `start - lagDays`, not `start +
+  // lagDays`. This was unnegated and checking the wrong side of every
+  // episode (e.g. a connection reported as "2 days before" was being
+  // verified 2 days *after* each episode instead), which is why these stats
+  // and the Timeline chart (whose x-axis does use the correct before/after
+  // sign) told two different stories for the same connection.
+  final offset = (-connection.lagDays).clamp(-windowDays, windowDays);
   final baseline = other.meanIntensityTrackedDays;
 
   var withPattern = 0;

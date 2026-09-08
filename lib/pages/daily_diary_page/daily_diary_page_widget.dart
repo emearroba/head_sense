@@ -41,87 +41,107 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
     _model = createModel(context, () => DailyDiaryPageModel());
 
     // On page load action.
-    SchedulerBinding.instance.addPostFrameCallback((_) async {
-      _model.todayDiaryEntry = await queryDiaryEntriesRecordOnce(
-        queryBuilder: (diaryEntriesRecord) => diaryEntriesRecord
-            .where(
-              'userRef',
-              isEqualTo: currentUserReference,
-            )
-            .where(
-              'entryDateKey',
-              isEqualTo: valueOrDefault<String>(
-                dateTimeFormat("yyyy-MM-dd", getCurrentTimestamp),
-                '2026-06-02',
-              ),
-            ),
-        singleRecord: true,
-      ).then((s) => s.firstOrNull);
-      if ((_model.todayDiaryEntry?.reference != null) &&
-          !widget!.editMode &&
-          _model.todayDiaryEntry!.isComplete) {
-        context.goNamed(DiaryCompletePageRetryWidget.routeName);
+    SchedulerBinding.instance.addPostFrameCallback((_) => _loadTodayEntry());
 
-        return;
-      }
-      if (_model.todayDiaryEntry?.reference != null) {
-        _model.currentDiaryEntryRef = _model.todayDiaryEntry?.reference;
+    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
+  }
+
+  // Split out of initState so the "couldn't get ready" retry button (see
+  // build()) can re-run it.
+  Future<void> _loadTodayEntry() async {
+    _model.subjectIdUnavailable = false;
+    var subjectId = currentSubjectId;
+    if (subjectId.isEmpty) {
+      // Not ready yet (see the doc comment on currentSubjectId in
+      // auth_util.dart) - try once to resolve it now rather than falling
+      // back to a fake 'user' doc id below, which would create a
+      // diary_entries doc with subjectId:'' that no dashboard/results query
+      // (all filtered by subjectId) would ever find again.
+      try {
+        subjectId = await ensureSubjectIdReady();
+      } catch (_) {}
+      if (subjectId.isEmpty) {
+        _model.subjectIdUnavailable = true;
         _model.checkingTodayEntry = false;
         safeSetState(() {});
         return;
       }
-      // 1. Create diary_entry document
+    }
 
-      var diaryEntriesRecordReference =
-          DiaryEntriesRecord.collection.doc('${valueOrDefault<String>(
-        currentUserReference?.id,
-        'user',
-      )}_${valueOrDefault<String>(
-        dateTimeFormat("yyyy-MM-dd", getCurrentTimestamp),
-        '2026-06-01',
-      )}');
-      await diaryEntriesRecordReference.set({
-        ...createDiaryEntriesRecordData(
-          entryDateKey: dateTimeFormat("yyyy-MM-dd", getCurrentTimestamp),
-          isComplete: false,
-          userRef: currentUserReference,
-          completedAt: getCurrentTimestamp,
-        ),
-        ...mapToFirestore(
-          {
-            'entryDate': FieldValue.serverTimestamp(),
-          },
-        ),
-      });
-      _model.createdDiaryEntry = DiaryEntriesRecord.getDocumentFromData({
-        ...createDiaryEntriesRecordData(
-          entryDateKey: dateTimeFormat("yyyy-MM-dd", getCurrentTimestamp),
-          isComplete: false,
-          userRef: currentUserReference,
-          completedAt: getCurrentTimestamp,
-        ),
-        ...mapToFirestore(
-          {
-            'entryDate': DateTime.now(),
-          },
-        ),
-      }, diaryEntriesRecordReference);
-      _model.currentDiaryEntryRef = _model.createdDiaryEntry?.reference;
+    _model.todayDiaryEntry = await queryDiaryEntriesRecordOnce(
+      queryBuilder: (diaryEntriesRecord) => diaryEntriesRecord
+          .where(
+            'subjectId',
+            isEqualTo: subjectId,
+          )
+          .where(
+            'entryDateKey',
+            isEqualTo: valueOrDefault<String>(
+              dateTimeFormat("yyyy-MM-dd", getCurrentTimestamp),
+              '2026-06-02',
+            ),
+          ),
+      singleRecord: true,
+    ).then((s) => s.firstOrNull);
+    if ((_model.todayDiaryEntry?.reference != null) &&
+        !widget!.editMode &&
+        _model.todayDiaryEntry!.isComplete) {
+      context.goNamed(DiaryCompletePageRetryWidget.routeName);
+
+      return;
+    }
+    if (_model.todayDiaryEntry?.reference != null) {
+      _model.currentDiaryEntryRef = _model.todayDiaryEntry?.reference;
       _model.checkingTodayEntry = false;
       safeSetState(() {});
-      // Action 6 - show next symptom
-      await queryMetricsRecordOnce(
-        queryBuilder: (metricsRecord) => metricsRecord
-            .where(
-              'isActive',
-              isEqualTo: true,
-            )
-            .orderBy('order'),
-        singleRecord: true,
-      ).then((s) => s.firstOrNull);
-    });
+      return;
+    }
+    // 1. Create diary_entry document
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
+    var diaryEntriesRecordReference =
+        DiaryEntriesRecord.collection.doc('${subjectId}_${valueOrDefault<String>(
+      dateTimeFormat("yyyy-MM-dd", getCurrentTimestamp),
+      '2026-06-01',
+    )}');
+    await diaryEntriesRecordReference.set({
+      ...createDiaryEntriesRecordData(
+        entryDateKey: dateTimeFormat("yyyy-MM-dd", getCurrentTimestamp),
+        isComplete: false,
+        subjectId: subjectId,
+        completedAt: getCurrentTimestamp,
+      ),
+      ...mapToFirestore(
+        {
+          'entryDate': FieldValue.serverTimestamp(),
+        },
+      ),
+    });
+    _model.createdDiaryEntry = DiaryEntriesRecord.getDocumentFromData({
+      ...createDiaryEntriesRecordData(
+        entryDateKey: dateTimeFormat("yyyy-MM-dd", getCurrentTimestamp),
+        isComplete: false,
+        subjectId: subjectId,
+        completedAt: getCurrentTimestamp,
+      ),
+      ...mapToFirestore(
+        {
+          'entryDate': DateTime.now(),
+        },
+      ),
+    }, diaryEntriesRecordReference);
+    _model.currentDiaryEntryRef = _model.createdDiaryEntry?.reference;
+    _model.checkingTodayEntry = false;
+    safeSetState(() {});
+    // Action 6 - show next symptom
+    await queryMetricsRecordOnce(
+      queryBuilder: (metricsRecord) => metricsRecord
+          .where(
+            'isActive',
+            isEqualTo: true,
+          )
+          .orderBy('order'),
+      singleRecord: true,
+    ).then((s) => s.firstOrNull);
   }
 
   @override
@@ -163,6 +183,41 @@ class _DailyDiaryPageWidgetState extends State<DailyDiaryPageWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (_model.subjectIdUnavailable) {
+      return Scaffold(
+        backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Couldn't set up your diary. Check your connection and try again.",
+                  textAlign: TextAlign.center,
+                  style: FlutterFlowTheme.of(context).bodyMedium,
+                ),
+                const SizedBox(height: 16.0),
+                FFButtonWidget(
+                  onPressed: () {
+                    safeSetState(() => _model.checkingTodayEntry = true);
+                    _loadTodayEntry();
+                  },
+                  text: 'Retry',
+                  options: FFButtonOptions(
+                    height: 44.0,
+                    color: FlutterFlowTheme.of(context).primary,
+                    textStyle: FlutterFlowTheme.of(context)
+                        .titleSmall
+                        .override(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     if (_model.checkingTodayEntry) {
       return Scaffold(
         backgroundColor: FlutterFlowTheme.of(context).primaryBackground,

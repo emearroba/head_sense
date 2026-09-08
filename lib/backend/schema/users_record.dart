@@ -21,6 +21,15 @@ class UsersRecord extends FirestoreRecord {
   String get uid => _uid ?? '';
   bool hasUid() => _uid != null;
 
+  // "subjectId" field. A random, opaque id (no relation to the Firebase Auth
+  // uid) assigned once by the assignSubjectId cloud function - the join key
+  // for the pseudonymous clinical collections (diary_entries, dashboard,
+  // health_samples), so those documents don't carry an identifiable
+  // reference back to this doc. See assign_subject_id.js.
+  String? _subjectId;
+  String get subjectId => _subjectId ?? '';
+  bool hasSubjectId() => _subjectId != null;
+
   // "email" field.
   String? _email;
   String get email => _email ?? '';
@@ -150,6 +159,7 @@ class UsersRecord extends FirestoreRecord {
 
   void _initializeFields() {
     _uid = snapshotData['uid'] as String?;
+    _subjectId = snapshotData['subjectId'] as String?;
     _email = snapshotData['email'] as String?;
     _plan = snapshotData['plan'] as String?;
     _studyParticipant = snapshotData['studyParticipant'] as bool?;

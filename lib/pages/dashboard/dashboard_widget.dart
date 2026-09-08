@@ -46,6 +46,50 @@ class _DashboardWidgetState extends State<DashboardWidget> {
     super.dispose();
   }
 
+  static const _weekdaysShort = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'];
+
+  // Sun=0..Sat=6, matching update_dashboard_metric.js's WEEKDAYS_SHORT
+  // indexing (JS Date#getUTCDay()) - Dart's DateTime#weekday is Mon=1..Sun=7,
+  // so %7 remaps Sun from 7 to 0 while leaving Mon..Sat unchanged.
+  String _dayOfWeekFor(String dateKey) =>
+      _weekdaysShort[DateTime.parse(dateKey).weekday % 7];
+
+  // Builds the same per-day records the removed `dashboard/{doc}/daily_values`
+  // subcollection used to provide, directly from the parent DashboardRecord's
+  // own `dailyValues` array (already in memory - no separate Firestore
+  // listener needed). That subcollection duplicated data already inline on
+  // the parent doc; SymptomBarChart/SeverityCalendarPanel/IntensityStatsPanel
+  // still take `List<DailyValuesRecord>`, so this adapts without touching
+  // those three widgets' internals. `dayOfWeek`/`dayOfWeekIndex` aren't
+  // exposed on DailyValueStruct (see dashboard_record.dart), so they're
+  // recomputed here from `date`; the synthetic per-day DocumentReference is
+  // never read from by any of the three widgets, just a placeholder
+  // getDocumentFromData requires.
+  List<DailyValuesRecord> _dailyValuesFromDashboard(DashboardRecord record) {
+    return record.dailyValues.map((d) {
+      final dayOfWeekIndex = DateTime.parse(d.date).weekday % 7;
+      return DailyValuesRecord.getDocumentFromData(
+        {
+          'day': d.day,
+          'date': d.date,
+          'category': d.category,
+          'isTracked': d.isTracked,
+          'isSpike': d.isSpike,
+          'deltaFromPreviousDay': d.deltaFromPreviousDay,
+          'value': d.value,
+          'barColor': d.barColor,
+          'dayOfWeek': _dayOfWeekFor(d.date),
+          'dayOfWeekIndex': dayOfWeekIndex,
+          'isMild': d.isMild,
+          'isModerate': d.isModerate,
+          'isSevere': d.isSevere,
+          'isMissing': d.isMissing,
+        },
+        record.reference.collection('daily_values').doc(d.date),
+      );
+    }).toList();
+  }
+
   void _showInfoDialog(BuildContext context, String title, String message) {
     showDialog(
       context: context,
@@ -292,8 +336,8 @@ class _DashboardWidgetState extends State<DashboardWidget> {
       stream: queryDashboardRecord(
         queryBuilder: (dashboardRecord) => dashboardRecord
             .where(
-              'userRef',
-              isEqualTo: currentUserReference,
+              'subjectId',
+              isEqualTo: currentSubjectId,
             )
             .where(
               'metricKey',
@@ -325,9 +369,28 @@ class _DashboardWidgetState extends State<DashboardWidget> {
           );
         }
         List<DashboardRecord> dashboardDashboardRecordList = snapshot.data!;
-        // Return an empty Container when the item does not exist.
+        // No dashboard doc yet for this metric/period - update_dashboard_metric.js
+        // only writes one once there's at least one diary entry to aggregate, so
+        // this is the normal state for a brand-new account. Was `return
+        // Container()` - an unstyled, background-less empty box that rendered as
+        // a blank white page instead of a "nothing to show yet" message.
         if (snapshot.data!.isEmpty) {
-          return Container();
+          return Scaffold(
+            backgroundColor: FlutterFlowTheme.of(context).primaryBackground,
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Text(
+                  'No data yet. Log a few diary entries to see your dashboard here.',
+                  textAlign: TextAlign.center,
+                  style: FlutterFlowTheme.of(context).bodyMedium.override(
+                        font: GoogleFonts.inter(),
+                        color: FlutterFlowTheme.of(context).secondaryText,
+                      ),
+                ),
+              ),
+            ),
+          );
         }
         final dashboardDashboardRecord = dashboardDashboardRecordList.isNotEmpty
             ? dashboardDashboardRecordList.first
@@ -501,15 +564,9 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                                         ),
                                   ),
                                   const SizedBox(height: 16.0),
-                                  StreamBuilder<List<DailyValuesRecord>>(
-                                    stream: queryDailyValuesRecord(
-                                      parent:
-                                          dashboardDashboardRecord?.reference,
-                                      queryBuilder: (dailyValuesRecord) =>
-                                          dailyValuesRecord.orderBy('date'),
-                                    ),
-                                    builder: (context, snapshot) {
-                                      if (!snapshot.hasData) {
+                                  Builder(
+                                    builder: (context) {
+                                      if (dashboardDashboardRecord == null) {
                                         return const Center(
                                           child: SizedBox(
                                             width: 50.0,
@@ -518,7 +575,9 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                                           ),
                                         );
                                       }
-                                      final allDays = snapshot.data!;
+                                      final allDays =
+                                          _dailyValuesFromDashboard(
+                                              dashboardDashboardRecord!);
                                       // The 7-day pill shares the last30 doc
                                       // (see queryPeriod above) - slice its
                                       // trailing 7 tracked days client-side
@@ -629,16 +688,9 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                                   const SizedBox(height: 12.0),
                                   SizedBox(
                                     width: 350.0,
-                                    child:
-                                        StreamBuilder<List<DailyValuesRecord>>(
-                                      stream: queryDailyValuesRecord(
-                                        parent:
-                                            dashboardDashboardRecord?.reference,
-                                        queryBuilder: (dailyValuesRecord) =>
-                                            dailyValuesRecord.orderBy('date'),
-                                      ),
-                                      builder: (context, snapshot) {
-                                        if (!snapshot.hasData) {
+                                    child: Builder(
+                                      builder: (context) {
+                                        if (dashboardDashboardRecord == null) {
                                           return Center(
                                             child: SizedBox(
                                               width: 24.0,
@@ -655,7 +707,8 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                                           );
                                         }
                                         final calendarDailyValuesRecordList =
-                                            snapshot.data!;
+                                            _dailyValuesFromDashboard(
+                                                dashboardDashboardRecord!);
 
                                         return custom_widgets
                                             .SeverityCalendarPanel(
@@ -728,8 +781,8 @@ class _DashboardWidgetState extends State<DashboardWidget> {
                           StreamBuilder<List<DiaryEntriesRecord>>(
                             stream: queryDiaryEntriesRecord(
                               queryBuilder: (q) => q
-                                  .where('userRef',
-                                      isEqualTo: currentUserReference)
+                                  .where('subjectId',
+                                      isEqualTo: currentSubjectId)
                                   .where('isComplete', isEqualTo: true),
                             ),
                             builder: (context, medPatternsSnapshot) {

@@ -70,20 +70,37 @@ class HeadlineMetricTiles extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 3.0),
-          Text(
-            m.label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.labelSmall.override(
-              font: GoogleFonts.inter(),
-              color: theme.secondaryText,
-              fontSize: 10.5,
-              lineHeight: 1.15,
+          // Fixed height for exactly 2 lines at this font/line-height,
+          // regardless of whether this particular label actually wraps to 1
+          // or 2 lines - IntrinsicHeight (which stretches every tile in the
+          // row to the tallest) measures each child's intrinsic height using
+          // a different width pass than the real Expanded layout gets, so a
+          // label that wraps only at the real (narrower) width was being
+          // under-measured, overflowing the row by a few px. Reserving a
+          // constant, width-independent height here removes that ambiguity.
+          SizedBox(
+            height: 24.0,
+            child: Text(
+              m.label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.labelSmall.override(
+                font: GoogleFonts.inter(),
+                color: theme.secondaryText,
+                fontSize: 10.5,
+                lineHeight: 1.15,
+              ),
             ),
           ),
           if (m.footer != null) ...[
             const SizedBox(height: 6.0),
-            m.footer!,
+            // Same fixed-height trick as the label above, and for the same
+            // reason: HeadlineDelta's `Flexible(child: Text(..., overflow:
+            // ellipsis))` is itself width-dependent, so IntrinsicHeight's
+            // dry-layout pass under-measured it too - this was the actual
+            // remaining source of the "9.0 pixels" bottom overflow on tiles
+            // that have a footer (the label fix alone didn't touch this).
+            SizedBox(height: 18.0, child: m.footer!),
           ],
         ],
       ),

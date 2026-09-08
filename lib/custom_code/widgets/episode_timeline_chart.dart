@@ -9,9 +9,9 @@ import 'package:fl_chart/fl_chart.dart';
 import 'episode_analytics.dart';
 
 // The Connections tab's per-connection "Timeline" chart: how a factor's
-// value changes, on average across every detected episode, in the days
-// before/during/after the anchor symptom's episodes start (offset 0). Sibling
-// to DualTrendChart (same fl_chart styling conventions - curved line, no dot
+// value changes, on average across every detected spike day of the anchor
+// symptom (offset 0), in the days before/after each one. Sibling to
+// DualTrendChart (same fl_chart styling conventions - curved line, no dot
 // markers, muted axis labels) but plots day-offset-from-event rather than
 // real calendar dates, and adds a shaded min/max band plus a marker at
 // offset 0, neither of which DualTrendChart needs.
@@ -41,7 +41,7 @@ class EpisodeTimelineChart extends StatelessWidget {
         height: height,
         child: Center(
           child: Text(
-            'Not enough overlapping days around your episodes yet.',
+            'Not enough overlapping days around your spikes yet.',
             style: theme.labelSmall.override(color: theme.secondaryText),
           ),
         ),

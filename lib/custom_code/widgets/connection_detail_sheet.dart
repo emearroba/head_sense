@@ -165,7 +165,7 @@ class _ConnectionDetailSheetState extends State<ConnectionDetailSheet> {
                 value: summary.checkableEpisodes == 0
                     ? '—'
                     : '${summary.episodesWithPattern} of ${summary.checkableEpisodes}',
-                label: 'episodes',
+                label: 'spikes',
               ),
             ),
             const SizedBox(width: 8.0),
@@ -215,8 +215,7 @@ class _ConnectionDetailSheetState extends State<ConnectionDetailSheet> {
       const SizedBox(height: 2.0),
       Text(
         'How ${widget.other.metricLabel.toLowerCase()} changes vs your average, '
-        'around the start of your ${widget.anchor.metricLabel.toLowerCase()} '
-        'episodes.',
+        'around your ${widget.anchor.metricLabel.toLowerCase()} spikes.',
         style: theme.labelSmall.override(
           font: GoogleFonts.inter(),
           color: theme.secondaryText,
@@ -231,7 +230,7 @@ class _ConnectionDetailSheetState extends State<ConnectionDetailSheet> {
       ),
       const SizedBox(height: 16.0),
       Text(
-        'Based on ${widget.episodes.length} detected episode'
+        'Based on ${widget.episodes.length} detected spike'
         '${widget.episodes.length == 1 ? '' : 's'} in this period.',
         style: theme.labelSmall.override(
           font: GoogleFonts.inter(),

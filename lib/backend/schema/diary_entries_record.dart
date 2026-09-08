@@ -36,10 +36,11 @@ class DiaryEntriesRecord extends FirestoreRecord {
   bool get isComplete => _isComplete ?? false;
   bool hasIsComplete() => _isComplete != null;
 
-  // "userRef" field.
-  DocumentReference? _userRef;
-  DocumentReference? get userRef => _userRef;
-  bool hasUserRef() => _userRef != null;
+  // "subjectId" field. The pseudonymous id this entry belongs to - never
+  // the Firebase Auth uid. See assign_subject_id.js.
+  String? _subjectId;
+  String get subjectId => _subjectId ?? '';
+  bool hasSubjectId() => _subjectId != null;
 
   // "coinsEarned" field.
   int? _coinsEarned;
@@ -51,7 +52,7 @@ class DiaryEntriesRecord extends FirestoreRecord {
     _entryDateKey = snapshotData['entryDateKey'] as String?;
     _completedAt = snapshotData['completedAt'] as DateTime?;
     _isComplete = snapshotData['isComplete'] as bool?;
-    _userRef = snapshotData['userRef'] as DocumentReference?;
+    _subjectId = snapshotData['subjectId'] as String?;
     _coinsEarned = castToType<int>(snapshotData['coinsEarned']);
   }
 
@@ -94,7 +95,7 @@ Map<String, dynamic> createDiaryEntriesRecordData({
   String? entryDateKey,
   DateTime? completedAt,
   bool? isComplete,
-  DocumentReference? userRef,
+  String? subjectId,
   int? coinsEarned,
 }) {
   final firestoreData = mapToFirestore(
@@ -103,7 +104,7 @@ Map<String, dynamic> createDiaryEntriesRecordData({
       'entryDateKey': entryDateKey,
       'completedAt': completedAt,
       'isComplete': isComplete,
-      'userRef': userRef,
+      'subjectId': subjectId,
       'coinsEarned': coinsEarned,
     }.withoutNulls,
   );
@@ -121,7 +122,7 @@ class DiaryEntriesRecordDocumentEquality
         e1?.entryDateKey == e2?.entryDateKey &&
         e1?.completedAt == e2?.completedAt &&
         e1?.isComplete == e2?.isComplete &&
-        e1?.userRef == e2?.userRef &&
+        e1?.subjectId == e2?.subjectId &&
         e1?.coinsEarned == e2?.coinsEarned;
   }
 
@@ -131,7 +132,7 @@ class DiaryEntriesRecordDocumentEquality
         e?.entryDateKey,
         e?.completedAt,
         e?.isComplete,
-        e?.userRef,
+        e?.subjectId,
         e?.coinsEarned
       ]);
 

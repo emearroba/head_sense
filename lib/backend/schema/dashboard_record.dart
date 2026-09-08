@@ -16,10 +16,11 @@ class DashboardRecord extends FirestoreRecord {
     _initializeFields();
   }
 
-  // "userRef" field.
-  DocumentReference? _userRef;
-  DocumentReference? get userRef => _userRef;
-  bool hasUserRef() => _userRef != null;
+  // "subjectId" field. The pseudonymous id this doc belongs to - never the
+  // Firebase Auth uid. See assign_subject_id.js.
+  String? _subjectId;
+  String get subjectId => _subjectId ?? '';
+  bool hasSubjectId() => _subjectId != null;
 
   // "metricRef" field.
   DocumentReference? _metricRef;
@@ -182,7 +183,7 @@ class DashboardRecord extends FirestoreRecord {
   bool hasCurrentDiaryStreak() => _currentDiaryStreak != null;
 
   void _initializeFields() {
-    _userRef = snapshotData['userRef'] as DocumentReference?;
+    _subjectId = snapshotData['subjectId'] as String?;
     _metricRef = snapshotData['metricRef'] as DocumentReference?;
     _periodStart = snapshotData['periodStart'] as DateTime?;
     _periodEnd = snapshotData['periodEnd'] as DateTime?;
@@ -260,7 +261,7 @@ class DashboardRecord extends FirestoreRecord {
 }
 
 Map<String, dynamic> createDashboardRecordData({
-  DocumentReference? userRef,
+  String? subjectId,
   DocumentReference? metricRef,
   DateTime? periodStart,
   DateTime? periodEnd,
@@ -280,7 +281,7 @@ Map<String, dynamic> createDashboardRecordData({
 }) {
   final firestoreData = mapToFirestore(
     <String, dynamic>{
-      'userRef': userRef,
+      'subjectId': subjectId,
       'metricRef': metricRef,
       'periodStart': periodStart,
       'periodEnd': periodEnd,
@@ -309,7 +310,7 @@ class DashboardRecordDocumentEquality implements Equality<DashboardRecord> {
   @override
   bool equals(DashboardRecord? e1, DashboardRecord? e2) {
     const listEquality = ListEquality();
-    return e1?.userRef == e2?.userRef &&
+    return e1?.subjectId == e2?.subjectId &&
         e1?.metricRef == e2?.metricRef &&
         e1?.periodStart == e2?.periodStart &&
         e1?.periodEnd == e2?.periodEnd &&
@@ -331,7 +332,7 @@ class DashboardRecordDocumentEquality implements Equality<DashboardRecord> {
 
   @override
   int hash(DashboardRecord? e) => const ListEquality().hash([
-        e?.userRef,
+        e?.subjectId,
         e?.metricRef,
         e?.periodStart,
         e?.periodEnd,

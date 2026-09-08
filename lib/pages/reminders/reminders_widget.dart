@@ -42,10 +42,7 @@ class _RemindersWidgetState extends State<RemindersWidget> {
     // On page load action.
     SchedulerBinding.instance.addPostFrameCallback((_) async {
       await queryRemindersRecordOnce(
-        queryBuilder: (remindersRecord) => remindersRecord.where(
-          'user_ref',
-          isEqualTo: currentUserReference,
-        ),
+        parent: currentUserReference,
         singleRecord: true,
       ).then((s) => s.firstOrNull);
     });
@@ -140,6 +137,7 @@ class _RemindersWidgetState extends State<RemindersWidget> {
                         padding: EdgeInsets.all(16.0),
                         child: StreamBuilder<List<RemindersRecord>>(
                           stream: queryRemindersRecord(
+                            parent: currentUserReference,
                             singleRecord: true,
                           ),
                           builder: (context, snapshot) {
@@ -708,11 +706,7 @@ class _RemindersWidgetState extends State<RemindersWidget> {
                       ),
                       StreamBuilder<List<RemindersRecord>>(
                         stream: queryRemindersRecord(
-                          queryBuilder: (remindersRecord) => remindersRecord
-                              .where(
-                            'user_ref',
-                            isEqualTo: currentUserReference,
-                          ),
+                          parent: currentUserReference,
                         ),
                         builder: (context, snapshot) {
                           if (!snapshot.hasData) {

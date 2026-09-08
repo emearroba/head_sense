@@ -1,5 +1,11 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+// See the comment on this same import in update_dashboard_metric.js - the
+// admin.firestore.Timestamp/FieldValue namespace statics come back
+// undefined under the Functions Emulator's runtime for this project's
+// firebase-functions/admin SDK version combo; the modular import works in
+// both the emulator and deployed.
+const { Timestamp } = require("firebase-admin/firestore");
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -7,7 +13,11 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-const { calculateDashboardForPeriod, dateKeyFromDate } = require("./update_dashboard_metric.js");
+const {
+  dateKeyFromDate,
+  computeTrackingDay,
+  updateDashboardDayIncremental,
+} = require("./update_dashboard_metric.js");
 
 // Mismas 5 ventanas que update_dashboard_metric.js (no se reexporta esa
 // constante desde ahí para no tocar ese archivo - si cambian las ventanas
@@ -48,111 +58,79 @@ const HEALTH_TYPE_CONFIG = {
   },
 };
 
-async function computeTrackingDay(userRef) {
-  const firstEntrySnap = await db
-    .collection("diary_entries")
-    .where("userRef", "==", userRef)
-    .orderBy("entryDate", "asc")
-    .limit(1)
-    .get();
+// Collapses just ONE day's samples of `type` into a single value - a
+// bounded, date-range-scoped query (at most however many samples one device
+// produced in a day), not a rescan of the whole tracked history. Mirrors
+// what buildValueByDate used to do across the entire widest period at once.
+async function buildTodayValue({ subjectId, type, aggregate, transform, dateKey }) {
+  const dayStart = new Date(`${dateKey}T00:00:00.000Z`);
+  const dayEnd = new Date(`${dateKey}T23:59:59.999Z`);
 
-  if (firstEntrySnap.empty) return 1;
-
-  const firstEntryDate = firstEntrySnap.docs[0].data().entryDate.toDate();
-  const today = new Date();
-  today.setUTCHours(23, 59, 59, 999);
-
-  const trackingDay =
-    Math.floor((today.getTime() - firstEntryDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-  return Math.max(1, trackingDay);
-}
-
-// Agrupa las muestras crudas de `health_samples` (un `type` concreto) por
-// día local (dateKeyFromDate) y las colapsa según `aggregate` - análogo a
-// fetchEntryDateMaps() en update_dashboard_metric.js, pero leyendo de
-// health_samples en vez de diary_entries/responses.
-async function buildValueByDate({ userId, type, aggregate, transform, periodStart, periodEnd }) {
   const samplesSnap = await db
-    .collection("users")
-    .doc(userId)
+    .collection("subjects")
+    .doc(subjectId)
     .collection("health_samples")
     .where("type", "==", type)
-    .where("startDate", ">=", admin.firestore.Timestamp.fromDate(periodStart))
-    .where("startDate", "<=", admin.firestore.Timestamp.fromDate(periodEnd))
+    .where("startDate", ">=", Timestamp.fromDate(dayStart))
+    .where("startDate", "<=", Timestamp.fromDate(dayEnd))
     .get();
 
-  const rawValuesByDate = new Map();
+  const values = samplesSnap.docs
+    .map((doc) => doc.data().value)
+    .filter((v) => typeof v === "number" && !isNaN(v));
 
-  samplesSnap.docs.forEach((doc) => {
-    const data = doc.data();
-    if (!data.startDate || typeof data.value !== "number") return;
+  if (values.length === 0) return null;
 
-    const dateKey = dateKeyFromDate(data.startDate.toDate());
-    const list = rawValuesByDate.get(dateKey) ?? [];
-    list.push(data.value);
-    rawValuesByDate.set(dateKey, list);
-  });
+  const collapsed =
+    aggregate === "avg"
+      ? values.reduce((a, b) => a + b, 0) / values.length
+      : values.reduce((a, b) => a + b, 0);
 
-  const valueByDate = new Map();
-  for (const [dateKey, values] of rawValuesByDate.entries()) {
-    const collapsed =
-      aggregate === "avg"
-        ? values.reduce((a, b) => a + b, 0) / values.length
-        : values.reduce((a, b) => a + b, 0);
-    valueByDate.set(dateKey, transform(collapsed));
-  }
-
-  return valueByDate;
+  return transform(collapsed);
 }
 
 exports.aggregateHealthSamples = functions.firestore
-  .document("users/{userId}/health_samples/{sampleId}")
+  .document("subjects/{subjectId}/health_samples/{sampleId}")
   .onWrite(async (change, context) => {
-    const { userId } = context.params;
+    const { subjectId } = context.params;
 
     const sampleData = change.after.exists ? change.after.data() : change.before.data();
-    if (!sampleData) return null;
+    if (!sampleData || !sampleData.startDate) return null;
 
     const config = HEALTH_TYPE_CONFIG[sampleData.type];
     if (!config) return null; // tipo de muestra que aún no mapeamos a un metricKey
 
-    const userRef = db.collection("users").doc(userId);
     const metricRef = db.collection("metrics").doc(config.metricKey);
+    const dateKey = dateKeyFromDate(sampleData.startDate.toDate());
 
-    const trackingDay = await computeTrackingDay(userRef);
+    const [trackingDay, newValue] = await Promise.all([
+      computeTrackingDay(subjectId),
+      buildTodayValue({
+        subjectId,
+        type: sampleData.type,
+        aggregate: config.aggregate,
+        transform: config.transform,
+        dateKey,
+      }),
+    ]);
 
-    const widestPeriod = PERIODS.reduce((a, b) => (a.days > b.days ? a : b));
-    const periodEnd = new Date();
-    periodEnd.setUTCHours(23, 59, 59, 999);
-    const periodStart = new Date(periodEnd);
-    periodStart.setUTCDate(periodStart.getUTCDate() - (widestPeriod.days - 1));
-    periodStart.setUTCHours(0, 0, 0, 0);
-
-    const valueByDate = await buildValueByDate({
-      userId,
-      type: sampleData.type,
-      aggregate: config.aggregate,
-      transform: config.transform,
-      periodStart,
-      periodEnd,
-    });
-
-    // calculateDashboardForPeriod es agnóstica a la fuente de los datos
-    // (ver update_dashboard_metric.js) - se reutiliza tal cual, sin
-    // duplicar el cálculo de ventanas/rachas/streaks.
+    // updateDashboardDayIncremental es agnóstica a la fuente de los datos -
+    // se reutiliza tal cual, sin duplicar el cálculo de ventanas/rachas.
+    // usedPainkillerToday se omite a propósito (no undefined -> false): un
+    // sample de wearable no dice nada sobre uso de analgésicos, así que no
+    // debe pisar lo que el diario ya haya registrado ese día.
     await Promise.all(
       PERIODS.map((period) =>
-        calculateDashboardForPeriod({
-          userRef,
-          userId,
+        updateDashboardDayIncremental({
+          subjectId,
           metricKey: config.metricKey,
           metricLabel: config.metricLabel,
           metricRef,
           trackingDay,
           periodType: period.type,
           periodDays: period.days,
-          entryDateMaps: { valueByDate, painkillerByDate: new Map() },
+          dateKey,
+          newValue,
         }),
       ),
     );

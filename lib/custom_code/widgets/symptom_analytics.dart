@@ -359,7 +359,14 @@ SymptomConnection? buildSymptomConnection(
   } else if (best.lagDays != 0) {
     kind = ConnectionKind.precursor;
     icon = Icons.history_rounded;
-    title = '$otherSubject often shows up $timing your $anchorLower';
+    // otherSubject alone ("Libido often shows up...") never said whether
+    // that's higher or lower libido - higher/delta were computed above but
+    // only ever consumed by the same-day risk/protective branches below.
+    // Booleans don't need this: otherSubject already names the yes/no
+    // direction ('Answering "yes" to ...').
+    final directionPrefix = isBoolean ? '' : (higher ? 'Higher ' : 'Lower ');
+    title =
+        '$directionPrefix$otherSubject often shows up $timing your $anchorLower';
     why = 'Some effects take a day or two to build up before symptoms show '
         '— sleep and stress are common examples. That\'s why we also check '
         'a few days before and after, not just the same day.';

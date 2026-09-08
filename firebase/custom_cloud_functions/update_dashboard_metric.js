@@ -1,5 +1,13 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+// Modular import instead of the admin.firestore.Timestamp/FieldValue
+// namespace statics - under the Functions Emulator's runtime (older
+// firebase-functions + admin SDK combo this project pins), those statics
+// come back undefined even though admin.firestore() itself works fine, and
+// the trigger below crashes with "Cannot read properties of undefined
+// (reading 'fromDate')" on every invocation. This form works in both the
+// emulator and deployed.
+const { Timestamp, FieldValue } = require("firebase-admin/firestore");
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -84,161 +92,49 @@ function calculateStreaks(dailyValues, categoryName) {
   return { current, longest };
 }
 
-// Queries diary_entries + their metricKey/painkiller responses once for
-// [periodStart, periodEnd]. Callers covering several shorter periods within
-// this range can reuse the same maps instead of re-querying per period -
-// see the entryDateMaps param on calculateDashboardForPeriod below.
-async function fetchEntryDateMaps({ userRef, metricKey, periodStart, periodEnd }) {
-  const entriesSnap = await db
+// Finds the day a subject's very first diary entry was tracked, to compute
+// "day N of tracking". A single limit(1) query regardless of how much
+// history exists - O(1), not part of the per-write history rescan this file
+// used to do.
+async function computeTrackingDay(subjectId) {
+  const firstEntrySnap = await db
     .collection("diary_entries")
-    .where("userRef", "==", userRef)
-    .where("entryDate", ">=", admin.firestore.Timestamp.fromDate(periodStart))
-    .where("entryDate", "<=", admin.firestore.Timestamp.fromDate(periodEnd))
+    .where("subjectId", "==", subjectId)
+    .orderBy("entryDate", "asc")
+    .limit(1)
     .get();
 
-  const valueByDate = new Map();
-  const painkillerByDate = new Map();
+  if (firstEntrySnap.empty) return 1;
 
-  // PARALELIZACIÓN: Consultar respuestas del síntoma Y de analgésicos
-  const responsePromises = entriesSnap.docs.map(async (doc) => {
-    const data = doc.data();
-    if (!data.entryDate) return null;
+  const firstEntryDate = firstEntrySnap.docs[0].data().entryDate.toDate();
+  const today = new Date();
+  today.setUTCHours(23, 59, 59, 999);
 
-    const dateKey = dateKeyFromDate(data.entryDate.toDate());
+  const trackingDay =
+    Math.floor((today.getTime() - firstEntryDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-    // 1. Obtener respuesta de la métrica actual
-    const responseSnap = await doc.ref
-      .collection("responses")
-      .doc(metricKey)
-      .get();
-
-    let numericValue = null;
-    if (responseSnap.exists) {
-      const val = Number(responseSnap.data().valueNumber);
-      if (!isNaN(val)) numericValue = val;
-    }
-
-    // 2. Obtener respuesta de analgésicos / analgesia
-    const pkSnap = await doc.ref
-      .collection("responses")
-      .doc(PAINKILLER_METRIC_KEY)
-      .get();
-
-    let pkValue = 0;
-    if (pkSnap.exists) {
-      const val = Number(pkSnap.data().valueNumber);
-      if (!isNaN(val) && val > 0) {
-        pkValue = val;
-      }
-    }
-
-    return {
-      dateKey,
-      value: numericValue,
-      painkillerUsed: pkValue > 0,
-    };
-  });
-
-  const fetchedResponses = await Promise.all(responsePromises);
-
-  for (const item of fetchedResponses) {
-    if (item) {
-      if (item.value !== null) {
-        valueByDate.set(item.dateKey, item.value);
-      }
-      painkillerByDate.set(item.dateKey, item.painkillerUsed);
-    }
-  }
-
-  return { valueByDate, painkillerByDate };
+  return Math.max(1, trackingDay);
 }
 
-async function calculateDashboardForPeriod({
-  userRef,
-  userId,
+// Builds one dashboard doc's full field set from an already-assembled
+// dailyValues array - pure (no Firestore access), so it's the single source
+// of truth for the category/streak/spike aggregate math shared by the
+// incremental per-write path below AND by dev/test tooling that seeds a
+// whole window of synthetic history in one shot (scripts/seed_mock_user.js)
+// without wanting to replay hundreds of incremental writes just to get the
+// same aggregates.
+function buildDashboardDoc({
+  subjectId,
   metricKey,
   metricLabel,
   metricRef,
   trackingDay,
   periodType,
   periodDays,
-  // Optional { valueByDate, painkillerByDate } already covering this
-  // period's range (see fetchEntryDateMaps) - pass this when computing
-  // several periods for the same user/metric back to back so each one
-  // doesn't re-query + re-read the same overlapping diary_entries history.
-  entryDateMaps,
+  periodStart,
+  periodEnd,
+  dailyValues,
 }) {
-  const now = new Date();
-  const periodEnd = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      23,
-      59,
-      59,
-      999,
-    ),
-  );
-
-  const periodStart = new Date(periodEnd);
-  periodStart.setUTCDate(periodStart.getUTCDate() - (periodDays - 1));
-  periodStart.setUTCHours(0, 0, 0, 0);
-
-  const { valueByDate, painkillerByDate } =
-    entryDateMaps ??
-    (await fetchEntryDateMaps({ userRef, metricKey, periodStart, periodEnd }));
-
-  const dailyValues = [];
-  let previousValue = null;
-
-  for (let i = 0; i < periodDays; i++) {
-    const currentDate = new Date(periodStart);
-    currentDate.setUTCDate(periodStart.getUTCDate() + i);
-
-    const dateKey = dateKeyFromDate(currentDate);
-
-    const dayOfWeekIndex = currentDate.getUTCDay();
-    const dayOfWeek = WEEKDAYS_SHORT[dayOfWeekIndex];
-
-    const value = valueByDate.has(dateKey) ? valueByDate.get(dateKey) : null;
-    const usedPainkiller = painkillerByDate.get(dateKey) || false;
-
-    const category = getCategory(value);
-    const barColor = getBarColor(value);
-
-    let deltaFromPreviousDay = null;
-    let isSpike = false;
-
-    if (value !== null && previousValue !== null) {
-      deltaFromPreviousDay = value - previousValue;
-      isSpike = deltaFromPreviousDay >= 2;
-    }
-
-    dailyValues.push({
-      day: i + 1,
-      date: dateKey,
-      dayOfWeek,
-      dayOfWeekIndex,
-      value,
-      barColor,
-      category,
-      isTracked: value !== null,
-      usedPainkiller,
-      isCrystal: category === "crystal",
-      isMild: category === "mild",
-      isModerate: category === "moderate",
-      isSevere: category === "severe",
-      isMissing: category === "missing",
-      deltaFromPreviousDay,
-      isSpike,
-    });
-
-    if (value !== null) {
-      previousValue = value;
-    }
-  }
-
   let symptomDays = 0;
   let symptomFreeDays = 0;
   let missingDays = 0;
@@ -335,121 +231,309 @@ async function calculateDashboardForPeriod({
     missing: missingDays,
   };
 
-  const dashboardDocId = `${userId}_${metricKey}_${periodType}`;
+  return {
+    subjectId,
+
+    metricKey,
+    metricLabel,
+    metricRef,
+
+    periodType,
+    periodStart: Timestamp.fromDate(periodStart),
+    periodEnd: Timestamp.fromDate(periodEnd),
+    periodDays,
+
+    trackingDay,
+
+    dailyValues,
+
+    daysTracked,
+    missingDays,
+    painkillerDays,
+    completionRate,
+
+    symptomDays,
+    symptomFreeDays,
+    symptomRate,
+
+    mildSymptomDays,
+    moderateSymptomDays,
+    severeSymptomDays,
+
+    distribution,
+
+    symptomBurden,
+    meanIntensityAllDays,
+    meanIntensityTrackedDays,
+    meanIntensitySymptomDays,
+
+    maxIntensity,
+    minIntensity,
+
+    spikeCount,
+    meanSpikeMagnitude,
+
+    currentDiaryStreak: diaryStreak.current,
+    longestDiaryStreak: diaryStreak.longest,
+
+    currentCrystalStreak: crystalStreak.current,
+    longestCrystalStreak: crystalStreak.longest,
+
+    currentMildStreak: mildStreak.current,
+    longestMildStreak: mildStreak.longest,
+
+    currentModerateStreak: moderateStreak.current,
+    longestModerateStreak: moderateStreak.longest,
+
+    currentSevereStreak: severeStreak.current,
+    longestSevereStreak: severeStreak.longest,
+
+    currentMissingStreak: missingStreak.current,
+    longestMissingStreak: missingStreak.longest,
+
+    periodHasEnoughData,
+    analysisEligible,
+
+    calculationVersion: "v8_incremental_subjectId",
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+// Reads a dashboard/{subjectId}_{metricKey}_{periodType} doc's own prior
+// state, splices in the one day that changed, rebuilds the rolling window
+// from that in-memory map, hands it to buildDashboardDoc, and writes the
+// result back. See buildDashboardDoc's comment for why the aggregate math
+// itself lives there instead of here.
+//
+// Replaces the old approach (re-querying up to `periodDays` diary_entries +
+// 2x that many responses sub-reads, for EVERY period, on EVERY answered
+// question - see the 2026-08-30 billing incident this caused). Net cost per
+// call: 1 read + 1 write, flat regardless of how much history exists.
+//
+// Known limitation: if this doc doesn't exist yet, the window is rebuilt
+// from only the one day passed in - correct for a metric's genuinely first
+// answer ever, but means a dashboard doc that got deleted/reset while
+// diary_entries history remains would NOT backfill automatically (each
+// historical day's write already fired its own onWrite in the past; this
+// call only reacts to the day passed in). Not expected in normal operation.
+//
+// Wrapped in a transaction: read-then-write on the same doc would otherwise
+// have a lost-update race if two invocations for the same
+// (subjectId, metricKey, periodType) run concurrently (e.g. two questions
+// answered back-to-back before the first trigger finishes, or a bulk
+// backfill) - confirmed this actually happens under concurrent load while
+// testing this change against the emulator. The transaction costs nothing
+// extra on the (overwhelmingly common) uncontended path; it only retries
+// when there's real contention.
+async function updateDashboardDayIncremental({
+  subjectId,
+  metricKey,
+  metricLabel,
+  metricRef,
+  trackingDay,
+  periodType,
+  periodDays,
+  dateKey,
+  newValue,
+  usedPainkillerToday,
+}) {
+  const dashboardDocId = `${subjectId}_${metricKey}_${periodType}`;
   const dashboardRef = db.collection("dashboard").doc(dashboardDocId);
 
-  // 1. ESCRIBIR/ACTUALIZAR DOCUMENTO PADRE (Ahora incluye painkillerDays)
-  await dashboardRef.set(
-    {
-      userRef,
-      userId,
-
+  await db.runTransaction(async (tx) => {
+    const existingSnap = await tx.get(dashboardRef);
+    const doc = buildDashboardDocForDay({
+      existingSnap,
+      subjectId,
       metricKey,
       metricLabel,
       metricRef,
-
-      periodType,
-      periodStart: admin.firestore.Timestamp.fromDate(periodStart),
-      periodEnd: admin.firestore.Timestamp.fromDate(periodEnd),
-      periodDays,
-
       trackingDay,
+      periodType,
+      periodDays,
+      dateKey,
+      newValue,
+      usedPainkillerToday,
+    });
+    tx.set(dashboardRef, doc, { merge: true });
+  });
+}
 
-      dailyValues,
-
-      daysTracked,
-      missingDays,
-      painkillerDays, // <- Días con uso de analgésicos
-      completionRate,
-
-      symptomDays,
-      symptomFreeDays,
-      symptomRate,
-
-      mildSymptomDays,
-      moderateSymptomDays,
-      severeSymptomDays,
-
-      distribution,
-
-      symptomBurden,
-      meanIntensityAllDays,
-      meanIntensityTrackedDays,
-      meanIntensitySymptomDays,
-
-      maxIntensity,
-      minIntensity,
-
-      spikeCount,
-      meanSpikeMagnitude,
-
-      currentDiaryStreak: diaryStreak.current,
-      longestDiaryStreak: diaryStreak.longest,
-
-      currentCrystalStreak: crystalStreak.current,
-      longestCrystalStreak: crystalStreak.longest,
-
-      currentMildStreak: mildStreak.current,
-      longestMildStreak: mildStreak.longest,
-
-      currentModerateStreak: moderateStreak.current,
-      longestModerateStreak: moderateStreak.longest,
-
-      currentSevereStreak: severeStreak.current,
-      longestSevereStreak: severeStreak.longest,
-
-      currentMissingStreak: missingStreak.current,
-      longestMissingStreak: missingStreak.longest,
-
-      periodHasEnoughData,
-      analysisEligible,
-
-      calculationVersion: "v7_painkiller_support",
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    },
-    { merge: true },
+// The window-splicing part of updateDashboardDayIncremental, pulled out so
+// it can run inside db.runTransaction's callback (which Firestore may retry
+// on contention - this must stay a pure computation from `existingSnap`,
+// with no Firestore reads/writes of its own).
+function buildDashboardDocForDay({
+  existingSnap,
+  subjectId,
+  metricKey,
+  metricLabel,
+  metricRef,
+  trackingDay,
+  periodType,
+  periodDays,
+  dateKey,
+  newValue,
+  usedPainkillerToday,
+}) {
+  // periodEnd must cover at least `dateKey` (the day actually being
+  // written), not just the server's own UTC "today". entryDateKey is
+  // stamped client-side from the device's LOCAL calendar day - for a user
+  // ahead of UTC (most of Europe/Asia/Australia), "today" on their phone
+  // can already be a date the server's UTC clock hasn't reached yet. If
+  // periodEnd were pinned to server-UTC-today, the day-enumeration loop
+  // below would never produce a slot for that dateKey and the entry would
+  // silently vanish from the dashboard until UTC catches up (up to ~14h).
+  // Taking the later of the two keeps normal backfills/edits of past days
+  // unaffected (their dateKey <= server-UTC-today, so this is a no-op).
+  const now = new Date();
+  const serverTodayEnd = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      23,
+      59,
+      59,
+      999,
+    ),
   );
+  const [entryYear, entryMonth, entryDay] = dateKey.split("-").map(Number);
+  const entryDateEnd = new Date(
+    Date.UTC(entryYear, entryMonth - 1, entryDay, 23, 59, 59, 999),
+  );
+  const periodEnd =
+    entryDateEnd > serverTodayEnd ? entryDateEnd : serverTodayEnd;
+  const periodStart = new Date(periodEnd);
+  periodStart.setUTCDate(periodStart.getUTCDate() - (periodDays - 1));
+  periodStart.setUTCHours(0, 0, 0, 0);
 
-  // 2. PURGAR DOCUMENTOS ANTIGUOS FUERA DE ESTE PERIODO
-  const existingSubdocsSnap = await dashboardRef
-    .collection("daily_values")
-    .get();
-  const validDates = new Set(dailyValues.map((d) => d.date));
-
-  const deleteBatch = db.batch();
-  let deleteCount = 0;
-
-  existingSubdocsSnap.docs.forEach((doc) => {
-    if (!validDates.has(doc.id)) {
-      deleteBatch.delete(doc.ref);
-      deleteCount++;
+  // Everything we already know about this metric's history, keyed by date -
+  // seeded from the doc's own prior dailyValues (not re-fetched from
+  // diary_entries/responses), then patched with the one day that changed.
+  const knownByDate = new Map();
+  if (existingSnap.exists) {
+    const prior = existingSnap.data().dailyValues || [];
+    for (const day of prior) {
+      knownByDate.set(day.date, day);
     }
+  }
+  // usedPainkillerToday is optional: the diary-response caller always knows
+  // it and passes a real boolean; the health-samples caller has no opinion
+  // about painkiller use, so it omits this and whatever was already known
+  // for that day (from a prior diary answer) is preserved instead of being
+  // clobbered back to false.
+  knownByDate.set(dateKey, {
+    ...(knownByDate.get(dateKey) || {}),
+    value: newValue,
+    ...(usedPainkillerToday !== undefined
+      ? { usedPainkiller: usedPainkillerToday }
+      : {}),
   });
 
-  if (deleteCount > 0) {
-    await deleteBatch.commit();
+  // Seed the delta calculation with the day immediately before periodStart,
+  // not a hardcoded null. Each period (last30/60/90/.../365) rebuilds its
+  // window independently, so without this, the first day of every window
+  // was structurally unable to register a spike even when the true prior
+  // calendar day's value was known - and different-length windows disagreed
+  // on the same date's spike status purely because of where their own
+  // window happened to start. Because the window is re-anchored to
+  // periodEnd on every write and shifts forward by one day between
+  // consecutive daily writes, this lookback day is exactly the oldest day
+  // the previous stored doc (this same subjectId/metricKey/periodType) had
+  // in its own dailyValues, so knownByDate already has it in the common
+  // case of day-to-day usage. A real gap (nothing known for that day)
+  // correctly falls back to null - consistent with buildDashboardDocForDay
+  // never inventing a spike across missing days.
+  const dayBeforeStart = new Date(periodStart);
+  dayBeforeStart.setUTCDate(dayBeforeStart.getUTCDate() - 1);
+  const knownBeforeStart = knownByDate.get(dateKeyFromDate(dayBeforeStart));
+  let previousValue =
+    knownBeforeStart &&
+    knownBeforeStart.value !== null &&
+    knownBeforeStart.value !== undefined
+      ? knownBeforeStart.value
+      : null;
+
+  const dailyValues = [];
+
+  for (let i = 0; i < periodDays; i++) {
+    const currentDate = new Date(periodStart);
+    currentDate.setUTCDate(periodStart.getUTCDate() + i);
+    const dKey = dateKeyFromDate(currentDate);
+
+    const dayOfWeekIndex = currentDate.getUTCDay();
+    const dayOfWeek = WEEKDAYS_SHORT[dayOfWeekIndex];
+
+    const known = knownByDate.get(dKey);
+    const value =
+      known && known.value !== null && known.value !== undefined
+        ? known.value
+        : null;
+    const usedPainkiller = known ? !!known.usedPainkiller : false;
+
+    const category = getCategory(value);
+    const barColor = getBarColor(value);
+
+    let deltaFromPreviousDay = null;
+    let isSpike = false;
+
+    if (value !== null && previousValue !== null) {
+      deltaFromPreviousDay = value - previousValue;
+      isSpike = deltaFromPreviousDay >= 2;
+    }
+
+    dailyValues.push({
+      day: i + 1,
+      date: dKey,
+      dayOfWeek,
+      dayOfWeekIndex,
+      value,
+      barColor,
+      category,
+      isTracked: value !== null,
+      usedPainkiller,
+      isCrystal: category === "crystal",
+      isMild: category === "mild",
+      isModerate: category === "moderate",
+      isSevere: category === "severe",
+      isMissing: category === "missing",
+      deltaFromPreviousDay,
+      isSpike,
+    });
+
+    // Always advance to this day's value (including null for a missing
+    // day), rather than only when non-null. Previously a missing day left
+    // `previousValue` holding whatever the last-tracked value was, so the
+    // next tracked day - possibly a week later - got its delta computed
+    // against that stale value and could get flagged as a "spike" purely
+    // from the gap, not a real day-over-day jump.
+    previousValue = value;
   }
 
-  // 3. REGISTRAR / ACTUALIZAR LOS DÍAS DEL PERIODO ACTUAL
-  const writeBatch = db.batch();
-
-  for (const day of dailyValues) {
-    const dayRef = dashboardRef.collection("daily_values").doc(day.date);
-
-    writeBatch.set(dayRef, day, { merge: true });
-  }
-
-  await writeBatch.commit();
+  return buildDashboardDoc({
+    subjectId,
+    metricKey,
+    metricLabel,
+    metricRef,
+    trackingDay,
+    periodType,
+    periodDays,
+    periodStart,
+    periodEnd,
+    dailyValues,
+  });
 }
 
 exports.dateKeyFromDate = dateKeyFromDate;
 exports.getCategory = getCategory;
 exports.getBarColor = getBarColor;
 exports.calculateStreaks = calculateStreaks;
-// TEMP (mock-data seeding): exposes the real aggregation logic so a seed
-// script can call it directly against the emulator without relying on the
-// Functions emulator's onWrite trigger. Safe to remove after seeding.
-exports.calculateDashboardForPeriod = calculateDashboardForPeriod;
+exports.computeTrackingDay = computeTrackingDay;
+exports.buildDashboardDoc = buildDashboardDoc;
+exports.buildDashboardDocForDay = buildDashboardDocForDay;
+exports.updateDashboardDayIncremental = updateDashboardDayIncremental;
+exports.WEEKDAYS_SHORT = WEEKDAYS_SHORT;
 
 exports.updateDashboardMetric = functions.firestore
   .document("diary_entries/{entryId}/responses/{metricKey}")
@@ -463,11 +547,10 @@ exports.updateDashboardMetric = functions.firestore
     if (!entrySnap.exists) return null;
 
     const entryData = entrySnap.data();
-    const userRef = entryData.userRef;
+    const subjectId = entryData.subjectId;
+    const dateKey = entryData.entryDateKey;
 
-    if (!userRef) return null;
-
-    const userId = userRef.id;
+    if (!subjectId || !dateKey) return null;
 
     const metricRef = db.collection("metrics").doc(metricKey);
     const metricSnap = await metricRef.get();
@@ -499,75 +582,42 @@ exports.updateDashboardMetric = functions.firestore
       return null;
     }
 
-    const firstEntrySnap = await db
-      .collection("diary_entries")
-      .where("userRef", "==", userRef)
-      .orderBy("entryDate", "asc")
-      .limit(1)
-      .get();
+    // Today's new value comes straight off the write event - no read needed
+    // for the metric that was actually just answered.
+    const afterData = change.after.exists ? change.after.data() : null;
+    const rawValue = afterData ? Number(afterData.valueNumber) : NaN;
+    const newValue = isNaN(rawValue) ? null : rawValue;
 
-    let trackingDay = 1;
-
-    if (!firstEntrySnap.empty) {
-      const firstEntryDate = firstEntrySnap.docs[0].data().entryDate.toDate();
-
-      const today = new Date();
-      today.setUTCHours(23, 59, 59, 999);
-
-      trackingDay =
-        Math.floor(
-          (today.getTime() - firstEntryDate.getTime()) / (1000 * 60 * 60 * 24),
-        ) + 1;
-
-      trackingDay = Math.max(1, trackingDay);
+    // Painkiller status for today: already known for free if this write IS
+    // the painkiller answer; otherwise one bounded read (not a history
+    // rescan) for just today's entry.
+    let usedPainkillerToday;
+    if (metricKey === PAINKILLER_METRIC_KEY) {
+      usedPainkillerToday = newValue !== null && newValue > 0;
+    } else {
+      const pkSnap = await entryRef
+        .collection("responses")
+        .doc(PAINKILLER_METRIC_KEY)
+        .get();
+      const pkValue = pkSnap.exists ? Number(pkSnap.data().valueNumber) : 0;
+      usedPainkillerToday = !isNaN(pkValue) && pkValue > 0;
     }
 
-    // Todos los periodos (30/60/90/180/365 días) comparten el mismo tramo
-    // final de historial: en vez de que cada uno vuelva a consultar
-    // diary_entries + responses desde cero (5 queries + 5x lecturas por
-    // entrada para el mismo rango solapado), se consulta una sola vez la
-    // ventana más ancha (365 días) y se reutiliza para los 5 - esto es lo
-    // que multiplicaba una sola escritura en miles de lecturas/escrituras
-    // (ver incidente de facturación del 2026-08-30).
-    const widestPeriod = PERIODS.reduce((a, b) => (a.days > b.days ? a : b));
-    const nowForWidestPeriod = new Date();
-    const widestPeriodEnd = new Date(
-      Date.UTC(
-        nowForWidestPeriod.getUTCFullYear(),
-        nowForWidestPeriod.getUTCMonth(),
-        nowForWidestPeriod.getUTCDate(),
-        23,
-        59,
-        59,
-        999,
-      ),
-    );
-    const widestPeriodStart = new Date(widestPeriodEnd);
-    widestPeriodStart.setUTCDate(
-      widestPeriodStart.getUTCDate() - (widestPeriod.days - 1),
-    );
-    widestPeriodStart.setUTCHours(0, 0, 0, 0);
+    const trackingDay = await computeTrackingDay(subjectId);
 
-    const entryDateMaps = await fetchEntryDateMaps({
-      userRef,
-      metricKey,
-      periodStart: widestPeriodStart,
-      periodEnd: widestPeriodEnd,
-    });
-
-    // PARALELIZACIÓN: Ejecutar el cálculo de los 5 periodos al mismo tiempo
     await Promise.all(
       PERIODS.map((period) =>
-        calculateDashboardForPeriod({
-          userRef,
-          userId,
+        updateDashboardDayIncremental({
+          subjectId,
           metricKey,
           metricLabel,
           metricRef,
           trackingDay,
           periodType: period.type,
           periodDays: period.days,
-          entryDateMaps,
+          dateKey,
+          newValue,
+          usedPainkillerToday,
         }),
       ),
     );

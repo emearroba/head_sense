@@ -25,6 +25,12 @@ class DailyDiaryPageModel extends FlutterFlowModel<DailyDiaryPageWidget> {
   // redirect to the "already completed" page kicks in.
   bool checkingTodayEntry = true;
 
+  // True if subjectId still wasn't ready after an ensureSubjectIdReady()
+  // retry (e.g. offline, or the cloud function call failed) - the page
+  // shows a retry affordance instead of the questionnaire in this state,
+  // since writing a diary entry needs a real subjectId.
+  bool subjectIdUnavailable = false;
+
   // Answers given so far this session, keyed by metricKey, so the "back"
   // button can show what was previously entered for a question.
   final Map<String, double> localAnswers = {};

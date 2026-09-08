@@ -6,6 +6,7 @@ import '/custom_code/widgets/index.dart' as custom_widgets;
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'results_model.dart';
@@ -92,7 +93,7 @@ class _ResultsWidgetState extends State<ResultsWidget> {
                 : StreamBuilder<List<DiaryEntriesRecord>>(
                     stream: queryDiaryEntriesRecord(
                       queryBuilder: (q) => q
-                          .where('userRef', isEqualTo: currentUserReference)
+                          .where('subjectId', isEqualTo: currentSubjectId)
                           .where('isComplete', isEqualTo: true),
                     ),
                     builder: (context, entriesSnapshot) {
@@ -201,34 +202,37 @@ class _ResultsWidgetState extends State<ResultsWidget> {
                               ),
                           ] else
                             _lockedAnalysisCard(context, totalDays),
-                          const SizedBox(height: 12.0),
                           // TEMPORARY dev-only affordance to backfill fake
                           // diary days for testing the pattern gates -
-                          // remove once no longer needed. Shown regardless
-                          // of plan so it stays usable after flipping to
-                          // premium too.
-                          OutlinedButton(
-                            onPressed: _seeding
-                                ? null
-                                : () => _seedAverageUserHistory(
-                                    context, dateKeys, user.trackedMetricKeys),
-                            child: _seeding
-                                ? const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2.0),
-                                      ),
-                                      SizedBox(width: 10.0),
-                                      Text('Seeding…'),
-                                    ],
-                                  )
-                                : const Text(
-                                    'DEV: seed ~90d average-user history (with gaps)'),
-                          ),
+                          // remove once no longer needed. kDebugMode-gated so
+                          // it never renders (or even runs) in release
+                          // builds - it must never be reachable by real
+                          // users, since it grants premium for free.
+                          if (kDebugMode) ...[
+                            const SizedBox(height: 12.0),
+                            OutlinedButton(
+                              onPressed: _seeding
+                                  ? null
+                                  : () => _seedAverageUserHistory(context,
+                                      dateKeys, user.trackedMetricKeys),
+                              child: _seeding
+                                  ? const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2.0),
+                                        ),
+                                        SizedBox(width: 10.0),
+                                        Text('Seeding…'),
+                                      ],
+                                    )
+                                  : const Text(
+                                      'DEV: seed ~90d average-user history (with gaps)'),
+                            ),
+                          ],
                         ],
                       );
                     },
@@ -352,12 +356,19 @@ class _ResultsWidgetState extends State<ResultsWidget> {
     List<String> existingDateKeys,
     List<String> trackedMetricKeys,
   ) async {
+    // Defense in depth on top of the kDebugMode-gated button above and the
+    // Firestore rule that now rejects client writes to `plan` - this must
+    // never run (or grant premium) in a release build even if reached some
+    // other way.
+    if (!kDebugMode) return;
     setState(() => _seeding = true);
     try {
       // PatternInsightsPanel itself is gated behind a paying plan (see the
       // isPaying check above) - bump this dev account to premium too, so
       // seeding actually produces something visible instead of leaving the
-      // paywall card up in front of freshly-seeded data.
+      // paywall card up in front of freshly-seeded data. This write only
+      // succeeds against the Firestore emulator / a rules deploy that still
+      // allows it - production rules reject client-side `plan` changes.
       final user = await UsersRecord.getDocumentOnce(currentUserReference!);
       if (user.plan != 'core' && user.plan != 'premium') {
         await currentUserReference!.update({'plan': 'premium'});
@@ -432,7 +443,7 @@ class _ResultsWidgetState extends State<ResultsWidget> {
     // more metrics onto. Real user days are never in this set.
     final devSeededSnap = await FirebaseFirestore.instance
         .collection('diary_entries')
-        .where('userRef', isEqualTo: currentUserReference)
+        .where('subjectId', isEqualTo: currentSubjectId)
         .where('isDevSeed', isEqualTo: true)
         .get();
     final devSeededKeys = {
@@ -446,7 +457,7 @@ class _ResultsWidgetState extends State<ResultsWidget> {
     // existed before this run, not only ones created in it.
     final headacheDashboards = await queryDashboardRecordOnce(
       queryBuilder: (q) => q
-          .where('userRef', isEqualTo: currentUserReference)
+          .where('subjectId', isEqualTo: currentSubjectId)
           .where('metricKey', isEqualTo: 'headache_intensity')
           .where('periodType', isEqualTo: 'last90'),
     );
@@ -519,49 +530,76 @@ class _ResultsWidgetState extends State<ResultsWidget> {
     // Ascending so that when we reach day i and need headache_intensity
     // from day (i - correlatedLagDays) - a more recent day - it's already
     // been generated (smaller i's are processed first).
+    final newDayKeys = <String>[];
+    final backfillOnlyKeys = <String>[];
     for (var i = 1; i <= 90; i++) {
-      final date = DateTime.now().subtract(Duration(days: i));
-      final key = dateTimeFormat('yyyy-MM-dd', date);
-
+      final key = dateTimeFormat(
+          'yyyy-MM-dd', DateTime.now().subtract(Duration(days: i)));
       if (!existing.contains(key)) {
         if (rand.nextDouble() > 0.82) {
           skippedCount++;
           continue; // left as a genuinely missing day
         }
-        final entryRef = DiaryEntriesRecord.collection
-            .doc('${currentUserReference!.id}_$key');
-        batchSet(entryRef, {
-          ...createDiaryEntriesRecordData(
-            userRef: currentUserReference,
-            entryDateKey: key,
-            entryDate: date,
-            completedAt: date,
-            isComplete: true,
-            coinsEarned: 0,
-          ),
-          'isDevSeed': true,
-        });
-        final headacheValue = sampleValue().toDouble();
-        headacheByDate[key] = headacheValue;
-        batchSet(
-          ResponsesRecord.createDoc(entryRef, id: 'headache_intensity'),
-          createResponsesRecordData(
-            metricKey: 'headache_intensity',
-            metricLabel: 'Headache intensity',
-            valueNumber: headacheValue,
-          ),
-        );
-        queueTrackedMetrics(entryRef, key);
-        seededCount++;
+        newDayKeys.add(key);
       } else if (devSeededKeys.contains(key)) {
-        final entryRef = DiaryEntriesRecord.collection
-            .doc('${currentUserReference!.id}_$key');
-        queueTrackedMetrics(entryRef, key);
+        backfillOnlyKeys.add(key);
       }
       // else: a real, non-dev-seeded day - left untouched.
+    }
 
-      // Stay comfortably under Firestore's 500-writes-per-batch limit -
-      // each day can add up to 2 + backfilledCount ops.
+    // Phase 1: create every new diary_entries parent doc and commit before
+    // queuing any responses subcollection write. The responses rule checks
+    // ownership via get(diary_entries/$(parent)).data.subjectId - security
+    // rules only see already-committed state, never a sibling write from
+    // the same batch, so creating a parent doc and its responses in one
+    // batch made every responses write in that batch permission-denied
+    // (and, since batches are all-or-nothing, rolled back the parent docs
+    // too - every "new day" silently seeded nothing).
+    for (final key in newDayKeys) {
+      final date = DateTime.parse(key);
+      final entryRef =
+          DiaryEntriesRecord.collection.doc('${currentSubjectId}_$key');
+      batchSet(entryRef, {
+        ...createDiaryEntriesRecordData(
+          subjectId: currentSubjectId,
+          entryDateKey: key,
+          entryDate: date,
+          completedAt: date,
+          isComplete: true,
+          coinsEarned: 0,
+        ),
+        'isDevSeed': true,
+      });
+      if (opsInBatch >= 400) await flushBatch();
+    }
+    await flushBatch();
+
+    // Phase 2: parent docs are now committed - safe to queue their
+    // responses. Order matters here (not in phase 1): correlatedValue looks
+    // up headacheByDate for a more recent date than the one it's computing,
+    // so newDayKeys must stay in the same oldest-first-processed order it
+    // was collected in.
+    for (final key in newDayKeys) {
+      final entryRef =
+          DiaryEntriesRecord.collection.doc('${currentSubjectId}_$key');
+      final headacheValue = sampleValue().toDouble();
+      headacheByDate[key] = headacheValue;
+      batchSet(
+        ResponsesRecord.createDoc(entryRef, id: 'headache_intensity'),
+        createResponsesRecordData(
+          metricKey: 'headache_intensity',
+          metricLabel: 'Headache intensity',
+          valueNumber: headacheValue,
+        ),
+      );
+      queueTrackedMetrics(entryRef, key);
+      seededCount++;
+      if (opsInBatch >= 400) await flushBatch();
+    }
+    for (final key in backfillOnlyKeys) {
+      final entryRef =
+          DiaryEntriesRecord.collection.doc('${currentSubjectId}_$key');
+      queueTrackedMetrics(entryRef, key);
       if (opsInBatch >= 400) await flushBatch();
     }
     await flushBatch();

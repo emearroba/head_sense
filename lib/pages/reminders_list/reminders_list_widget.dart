@@ -127,10 +127,7 @@ class _RemindersListWidgetState extends State<RemindersListWidget> {
               Expanded(
                 child: StreamBuilder<List<RemindersRecord>>(
                   stream: queryRemindersRecord(
-                    queryBuilder: (remindersRecord) => remindersRecord.where(
-                      'user_ref',
-                      isEqualTo: currentUserReference,
-                    ),
+                    parent: currentUserReference,
                   ),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) {

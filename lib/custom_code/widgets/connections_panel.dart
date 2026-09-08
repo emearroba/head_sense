@@ -81,7 +81,7 @@ class _ConnectionsPanelState extends State<ConnectionsPanel> {
     return StreamBuilder<List<DashboardRecord>>(
       stream: queryDashboardRecord(
         queryBuilder: (q) => q
-            .where('userRef', isEqualTo: currentUserReference)
+            .where('subjectId', isEqualTo: currentSubjectId)
             .where('periodType', isEqualTo: widget.selectedPeriod),
       ),
       builder: (context, snapshot) {

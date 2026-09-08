@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../auth_manager.dart';
@@ -21,6 +22,60 @@ String get currentUserEmail =>
     currentUserDocument?.email ?? currentUser?.email ?? '';
 
 String get currentUserUid => currentUser?.uid ?? '';
+
+/// The pseudonymous id the pseudonymous clinical collections
+/// (diary_entries, dashboard, health_samples) are keyed by - never the
+/// Firebase Auth uid. Assigned once per account by the assignSubjectId
+/// cloud function and read here off the already-loaded user doc (see
+/// currentUserDocument below), not the ID token, so there's no
+/// token-refresh race right after sign-up. Empty until the cloud function's
+/// write has synced - callers writing diary data should treat an empty
+/// value as "not ready yet" rather than a valid key.
+String get currentSubjectId => currentUserDocument?.subjectId ?? '';
+
+/// Makes sure the signed-in user has a working subjectId: present on their
+/// `users/{uid}` doc AND on their cached ID token's custom claims (Firestore
+/// rules check the token claim, not the doc, to own diary_entries/
+/// dashboard/health_samples - see firestore.rules). Two gaps this closes
+/// that the assignSubjectId onCreate trigger alone doesn't:
+///  1. Accounts created before that trigger shipped never got a subjectId
+///     at all and are otherwise locked out permanently.
+///  2. A brand-new account's cached ID token doesn't carry a claim set
+///     moments ago until explicitly refreshed - without forcing that here,
+///     the first diary write races Firebase's natural (up to ~1hr) token
+///     refresh and gets rejected with permission-denied.
+///
+/// Safe to call repeatedly - the fast path below (doc and token claim
+/// already agree) is a single read with no cloud function round trip or
+/// writes. Call this after sign-in/sign-up and once at app startup for a
+/// resumed session (see firebase_auth_manager.dart / main.dart), and before
+/// any write that depends on currentSubjectId being non-empty.
+Future<String> ensureSubjectIdReady() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return '';
+
+  final userRef = UsersRecord.collection.doc(user.uid);
+  final doc = await UsersRecord.getDocumentOnce(userRef);
+  final tokenResult = await user.getIdTokenResult();
+  final tokenSubjectId = tokenResult.claims?['subjectId'] as String?;
+
+  if (doc.subjectId.isNotEmpty && tokenSubjectId == doc.subjectId) {
+    currentUserDocument = doc;
+    return doc.subjectId;
+  }
+
+  final result = await FirebaseFunctions.instance
+      .httpsCallable('ensureSubjectId')
+      .call<Map<String, dynamic>>();
+  final subjectId = result.data['subjectId'] as String;
+
+  // The claim set above only lands in a freshly-minted ID token - force
+  // that now instead of waiting on it to happen naturally.
+  await user.getIdToken(true);
+
+  currentUserDocument = await UsersRecord.getDocumentOnce(userRef);
+  return subjectId;
+}
 
 String get currentUserDisplayName =>
     currentUserDocument?.displayName ?? currentUser?.displayName ?? '';

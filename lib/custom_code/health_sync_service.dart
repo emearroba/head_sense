@@ -74,14 +74,19 @@ class HealthSyncService {
   }
 
   /// Fetches [lookback] worth of samples and writes them to
-  /// `users/{uid}/health_samples`, keyed by each sample's own uuid so
-  /// re-running this never creates duplicates. Returns how many samples
-  /// were written.
+  /// `subjects/{subjectId}/health_samples` - pseudonymous like the other
+  /// clinical collections (diary_entries, dashboard), not nested under
+  /// `users/{uid}` - keyed by each sample's own uuid so re-running this
+  /// never creates duplicates. Returns how many samples were written.
   Future<int> syncRecentData({Duration lookback = const Duration(days: 7)}) async {
     if (!isSupported) return 0;
 
     final userRef = currentUserReference;
     if (userRef == null) return 0;
+    final subjectId = currentSubjectId;
+    if (subjectId.isEmpty) return 0;
+    final subjectRef =
+        FirebaseFirestore.instance.collection('subjects').doc(subjectId);
 
     final now = DateTime.now();
     final points = await _health.getHealthDataFromTypes(
@@ -107,7 +112,7 @@ class HealthSyncService {
           ? point.uuid
           : '${point.type.name}_${point.dateFrom.millisecondsSinceEpoch}_${point.dateTo.millisecondsSinceEpoch}';
 
-      final ref = HealthSamplesRecord.createDoc(userRef, id: docId);
+      final ref = HealthSamplesRecord.createDoc(subjectRef, id: docId);
       batch.set(
         ref,
         createHealthSamplesRecordData(

@@ -83,7 +83,7 @@ class _InterventionsComparisonPanelState
                 return StreamBuilder<List<DashboardRecord>>(
                   stream: queryDashboardRecord(
                     queryBuilder: (q) => q
-                        .where('userRef', isEqualTo: currentUserReference)
+                        .where('subjectId', isEqualTo: currentSubjectId)
                         .where('metricKey', isEqualTo: widget.selectedFocusKey)
                         .where('periodType', isEqualTo: widget.selectedPeriod),
                   ),

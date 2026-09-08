@@ -12,103 +12,117 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Pseudonymous clinical collections (diary_entries, its responses
+    // subcollection, dashboard, health_samples) are keyed by `subjectId`, a
+    // random id unrelated to the Firebase Auth uid (see
+    // assign_subject_id.js) - ownership here is checked against the
+    // `subjectId` custom claim on the caller's ID token, never against uid,
+    // so a document itself never carries anything that identifies its
+    // owner to someone reading it directly.
     match /diary_entries/{document} {
-      allow create: if request.resource.data.userRef == /databases/$(database)/documents/users/$(request.auth.uid);
-      allow read: if resource.data.userRef == /databases/$(database)/documents/users/$(request.auth.uid);
-      // Same gap as diary_entries/{parent}/responses/{document} above:
-      // `write` doesn't cover update unless granted separately, and marking
-      // the entry complete (daily_diary_page_widget.dart's onSubmit, once
-      // the last question is answered) is an update on this doc - without
-      // this it hits permission-denied and the diary gets stuck at the end.
-      allow update: if resource.data.userRef == /databases/$(database)/documents/users/$(request.auth.uid);
-      allow write: if false;
-      allow delete: if false;
-    }
-
-    match /metrics/{document} {
-      allow create: if true;
-      allow read: if true;
-      allow write: if false;
-      allow delete: if false;
-    }
-
-    match /medications/{document} {
-      allow create: if true;
-      allow read: if true;
-      allow write: if false;
-      allow delete: if false;
-    }
-
-    match /diet_types/{document} {
-      allow create: if true;
-      allow read: if true;
+      allow create: if request.resource.data.subjectId == request.auth.token.subjectId;
+      allow read: if resource.data.subjectId == request.auth.token.subjectId;
+      allow update: if resource.data.subjectId == request.auth.token.subjectId;
       allow write: if false;
       allow delete: if false;
     }
 
     match /diary_entries/{parent}/responses/{document} {
-      allow create: if true;
-      allow read: if true;
-      // `write` only covers create/delete unless `update` is granted too -
-      // without this, re-answering a question (MetricAnswerInput's onSubmit
-      // does .set() on an id keyed by metricKey, so re-tapping the same
-      // question is an update, not a create) hits permission-denied and
-      // gets the diary stuck on that question forever (see
-      // metric_answer_input.dart's _handleScaleTap/_handleSubmit).
-      allow update: if true;
+      // Response docs don't carry subjectId themselves (metricKey,
+      // metricLabel, capturedAt, valueNumber only) - ownership is checked
+      // via the parent diary_entries doc instead. One extra read per
+      // request here, but bounded (not the per-history-day rescan this
+      // schema change is otherwise removing).
+      allow create, read, update: if get(/databases/$(database)/documents/diary_entries/$(parent)).data.subjectId == request.auth.token.subjectId;
       allow write: if false;
       allow delete: if false;
     }
 
-    match /{path=**}/responses/{document} {
-      allow read: if true;
+    // Reference catalogs (client-seeded once if empty - see
+    // interventions_widget.dart's _seedCatalogsIfEmpty). Was `if true` on
+    // both create and read, so anyone on the internet, logged in or not,
+    // could read or inject rows into these with no rate limit. Requiring
+    // auth keeps the existing "first signed-in user seeds it" behavior
+    // while closing anonymous scraping/injection. A follow-up should move
+    // seeding to a one-time admin script/Cloud Function instead of trusting
+    // any signed-in client to write catalog content at all.
+    match /metrics/{document} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null;
+      allow write: if false;
+      allow delete: if false;
     }
 
+    match /medications/{document} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null;
+      allow write: if false;
+      allow delete: if false;
+    }
+
+    match /diet_types/{document} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null;
+      allow write: if false;
+      allow delete: if false;
+    }
 
     match /plans/{document} {
-      allow create: if true;
-      allow read: if true;
+      allow create: if request.auth != null;
+      allow read: if request.auth != null;
       allow write: if false;
       allow delete: if false;
     }
 
+    // Was `if true` on both - any anonymous client could list every study's
+    // plaintext `accessCode` (join_study_widget.dart queries this
+    // collection directly), defeating the "code from your clinician" invite
+    // model. Requiring auth stops anonymous enumeration; a signed-in user
+    // can still read all access codes by querying without a filter, which
+    // is a separate, larger fix (validate codes server-side via a callable
+    // function instead of a direct client query) - not done here.
     match /studies/{document} {
-      allow create: if true;
-      allow read: if true;
+      allow create: if request.auth != null;
+      allow read: if request.auth != null;
       allow write: if false;
       allow delete: if false;
     }
 
     match /users/{document} {
-      allow create: if true;
-      allow read: if true;
+      // Was `if true` - anyone could pre-create /users/{someoneElsesUid}
+      // with arbitrary fields before that uid ever signed up. Doc id is the
+      // Firebase Auth uid (see backend.dart's maybeCreateUser), so this only
+      // lets a user create their own profile document.
+      allow create: if request.auth != null && request.auth.uid == document;
+      // Was `allow read: if true` - anyone, logged in or not, could read
+      // any user's email/display name/phone/location. Only the account
+      // owner may read their own profile now.
+      allow read: if request.auth != null && request.auth.uid == document;
       // User doc IDs are the Firebase Auth uid (see backend.dart), so this
       // only lets a user update their own profile - covers the settings
       // toggles (tracked variables, location, joined studies) and the
       // Interventions section (medication doses/diets + their start dates),
-      // all of which write via `currentUserReference!.update(...)`.
-      allow update: if request.auth != null && request.auth.uid == document;
+      // all of which write via `currentUserReference!.update(...)`. `plan`
+      // is additionally frozen against client writes - there is no
+      // legitimate purchase flow yet (see CLAUDE.md/results_widget.dart),
+      // so the only place this field could change from the client was the
+      // dev-only premium-seeding button, which must not be able to grant
+      // premium for free. A real purchase flow must set `plan` from a
+      // trusted Cloud Function (Admin SDK bypasses these rules) after
+      // verifying payment, never directly from the client.
+      allow update: if request.auth != null && request.auth.uid == document &&
+          request.resource.data.get('plan', null) == resource.data.get('plan', null);
       allow delete: if false;
     }
 
+    // Only the Admin-SDK cloud functions (update_dashboard_metric.js,
+    // aggregate_health_samples.js) ever write this collection - they bypass
+    // these rules entirely, so client writes are never legitimate here.
     match /dashboard/{document} {
-      allow create: if true;
-      allow read: if true;
+      allow read: if resource.data.subjectId == request.auth.token.subjectId;
       allow write: if false;
       allow delete: if false;
     }
-
-    match /dashboard/{parent}/daily_values/{document} {
-      allow create: if true;
-      allow read: if true;
-      allow write: if false;
-      allow delete: if false;
-    }
-
-    match /{path=**}/daily_values/{document} {
-      allow read: if true;
-    }
-
 
     match /users/{parent}/reminders/{document} {
       allow create: if request.auth.uid == parent;
@@ -117,15 +131,16 @@ service cloud.firestore {
       allow delete: if request.auth.uid == parent;
     }
 
-    // Raw Apple Health / Google Health Connect samples - sensitive, so
-    // unlike most other collections above this is NOT world-readable, only
-    // the owning user (and the aggregate_health_samples cloud function,
-    // which uses the Admin SDK and bypasses these rules) can access it.
-    match /users/{parent}/health_samples/{document} {
-      allow create: if request.auth.uid == parent;
-      allow read: if request.auth.uid == parent;
-      allow write: if request.auth.uid == parent;
-      allow delete: if request.auth.uid == parent;
+    // Raw Apple Health / Google Health Connect samples - pseudonymous like
+    // the other clinical collections above (nested under subjects/{subjectId},
+    // not users/{uid}, on purpose). Only the owning subject (and the
+    // aggregateHealthSamples cloud function, which uses the Admin SDK and
+    // bypasses these rules) can access it.
+    match /subjects/{subject}/health_samples/{document} {
+      allow create: if subject == request.auth.token.subjectId;
+      allow read: if subject == request.auth.token.subjectId;
+      allow write: if subject == request.auth.token.subjectId;
+      allow delete: if subject == request.auth.token.subjectId;
     }
   }
 }

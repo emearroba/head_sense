@@ -173,7 +173,7 @@ class _TrackingProgressCardState extends State<TrackingProgressCard> {
         return StreamBuilder<List<DiaryEntriesRecord>>(
           stream: queryDiaryEntriesRecord(
             queryBuilder: (q) => q
-                .where('userRef', isEqualTo: currentUserReference)
+                .where('subjectId', isEqualTo: currentSubjectId)
                 .where('isComplete', isEqualTo: true),
           ),
           builder: (context, snapshot) {

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'auth/firebase_auth/firebase_user_provider.dart';
 import 'auth/firebase_auth/auth_util.dart';
 
@@ -91,6 +92,15 @@ class _MyAppState extends State<MyApp> {
         _appStateNotifier.update(user);
       });
     jwtTokenStream.listen((_) {});
+    // Covers a resumed (persisted) session on cold start, which never goes
+    // through firebase_auth_manager's sign-in path - without this, an
+    // account created before the subjectId migration shipped stays locked
+    // out of its diary/dashboard until it happens to sign out and back in.
+    // Fire-and-forget: must not block the splash screen, and the diary
+    // page's own retry covers a transient failure here.
+    if (FirebaseAuth.instance.currentUser != null) {
+      ensureSubjectIdReady().catchError((_) => '');
+    }
     Future.delayed(
       Duration(milliseconds: 1000),
       () => _appStateNotifier.stopShowingSplashImage(),

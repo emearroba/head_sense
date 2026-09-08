@@ -61,7 +61,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "userRef",
+          "fieldPath": "subjectId",
           "order": "ASCENDING"
         },
         {
@@ -75,6 +75,20 @@
         {
           "fieldPath": "periodStart",
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "diary_entries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "subjectId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "entryDate",
+          "order": "ASCENDING"
         }
       ]
     },
