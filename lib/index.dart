@@ -13,6 +13,9 @@ export '/pages/settings/settings_widget.dart' show SettingsWidget;
 export '/pages/interventions/interventions_widget.dart'
     show InterventionsWidget;
 export '/pages/results/results_widget.dart' show ResultsWidget;
+export '/pages/legal/legal_widget.dart' show LegalWidget, kLegalVersion;
+export '/pages/welcome_intro/welcome_intro_widget.dart'
+    show WelcomeIntroWidget;
 export '/pages/onboarding_goals/onboarding_goals_widget.dart'
     show OnboardingGoalsWidget;
 export '/pages/weather/weather_widget.dart' show WeatherWidget;

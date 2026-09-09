@@ -47,10 +47,17 @@ class AuthenticationModel extends FlutterFlowModel<AuthenticationWidget> {
   late bool passwordVisibility;
   String? Function(BuildContext, String?)? passwordTextControllerValidator;
 
+  // Whether the "I agree to the Terms of Service and Privacy Policy"
+  // checkbox on the Create Account pane is checked. Required before account
+  // creation proceeds - see kLegalVersion (legal_widget.dart) for what's
+  // actually being agreed to right now.
+  bool acceptedTerms = false;
+
   @override
   void initState(BuildContext context) {
     passwordCreateVisibility = false;
     passwordVisibility = false;
+    acceptedTerms = false;
   }
 
   @override

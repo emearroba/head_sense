@@ -19,10 +19,13 @@ class FFAppState extends ChangeNotifier {
   }
 
   static const _healthSyncEnabledPrefsKey = 'ff_healthSyncEnabled';
+  static const _hasSeenWelcomeIntroPrefsKey = 'ff_hasSeenWelcomeIntro';
 
   Future initializePersistedState() async {
     final prefs = await SharedPreferences.getInstance();
     _healthSyncEnabled = prefs.getBool(_healthSyncEnabledPrefsKey) ?? false;
+    _hasSeenWelcomeIntro =
+        prefs.getBool(_hasSeenWelcomeIntroPrefsKey) ?? false;
   }
 
   void update(VoidCallback callback) {
@@ -71,5 +74,18 @@ class FFAppState extends ChangeNotifier {
     _healthSyncEnabled = value;
     SharedPreferences.getInstance()
         .then((prefs) => prefs.setBool(_healthSyncEnabledPrefsKey, value));
+  }
+
+  /// Whether the "what does this app do" welcome carousel
+  /// (WelcomeIntroWidget) has been shown on this device. Read synchronously
+  /// by nav.dart's root route to decide whether a not-yet-logged-in user
+  /// sees it before Authentication - device-level, not account-level, since
+  /// it must apply before anyone has signed up.
+  bool _hasSeenWelcomeIntro = false;
+  bool get hasSeenWelcomeIntro => _hasSeenWelcomeIntro;
+  set hasSeenWelcomeIntro(bool value) {
+    _hasSeenWelcomeIntro = value;
+    SharedPreferences.getInstance()
+        .then((prefs) => prefs.setBool(_hasSeenWelcomeIntroPrefsKey, value));
   }
 }

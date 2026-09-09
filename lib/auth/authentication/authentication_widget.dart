@@ -335,6 +335,48 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
     );
   }
 
+  Widget _termsCheckboxRow(BuildContext context) {
+    final theme = FlutterFlowTheme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 24.0,
+          height: 24.0,
+          child: Checkbox(
+            value: _model.acceptedTerms,
+            onChanged: (value) =>
+                safeSetState(() => _model.acceptedTerms = value ?? false),
+            activeColor: theme.primary,
+          ),
+        ),
+        const SizedBox(width: 8.0),
+        Expanded(
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                'I agree to the ',
+                style: theme.bodySmall.override(color: theme.secondaryText),
+              ),
+              InkWell(
+                onTap: () => context.pushNamed(LegalWidget.routeName),
+                child: Text(
+                  'Terms of Service and Privacy Policy',
+                  style: theme.bodySmall.override(
+                    color: theme.primary,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = FlutterFlowTheme.of(context);
@@ -479,9 +521,22 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
           validator: _model.passwordCreateTextControllerValidator
               ?.asValidator(context),
         ),
-        const SizedBox(height: 24.0),
+        const SizedBox(height: 16.0),
+        _termsCheckboxRow(context),
+        const SizedBox(height: 16.0),
         FFButtonWidget(
           onPressed: () async {
+            if (!_model.acceptedTerms) {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                      'Please agree to the Terms of Service and Privacy Policy to continue.'),
+                ),
+              );
+              return;
+            }
+
             GoRouter.of(context).prepareAuthEvent();
 
             final user = await authManager.createAccountWithEmail(
@@ -492,6 +547,11 @@ class _AuthenticationWidgetState extends State<AuthenticationWidget>
             if (user == null) {
               return;
             }
+
+            await currentUserReference!.update({
+              'termsAcceptedAt': FieldValue.serverTimestamp(),
+              'termsVersion': kLegalVersion,
+            });
 
             await RemindersRecord.createDoc(
               currentUserReference!,

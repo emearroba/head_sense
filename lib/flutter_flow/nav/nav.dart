@@ -6,6 +6,7 @@ import 'package:page_transition/page_transition.dart';
 import 'package:provider/provider.dart';
 import '/backend/backend.dart';
 import '/backend/schema/structs/index.dart';
+import '/app_state.dart';
 
 import '/auth/base_auth_user_provider.dart';
 
@@ -81,19 +82,34 @@ class AppStateNotifier extends ChangeNotifier {
   }
 }
 
+// Not-yet-logged-in users see the "what does this app do" walkthrough
+// (WelcomeIntroWidget) once per device before Authentication - checked via
+// FFAppState's persisted flag rather than gating on it in Authentication
+// itself, so Authentication stays reachable directly (e.g. after "Skip",
+// or a deep link) without looping back through the intro.
+Widget _loggedOutInitialWidget() =>
+    FFAppState().hasSeenWelcomeIntro ? AuthenticationWidget() : WelcomeIntroWidget();
+
 GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
       initialLocation: '/',
       debugLogDiagnostics: true,
       refreshListenable: appStateNotifier,
       navigatorKey: appNavigatorKey,
-      errorBuilder: (context, state) =>
-          appStateNotifier.loggedIn ? NavBarPage() : AuthenticationWidget(),
+      errorBuilder: (context, state) => appStateNotifier.loggedIn
+          ? NavBarPage()
+          : _loggedOutInitialWidget(),
       routes: [
         FFRoute(
           name: '_initialize',
           path: '/',
-          builder: (context, _) =>
-              appStateNotifier.loggedIn ? NavBarPage() : AuthenticationWidget(),
+          builder: (context, _) => appStateNotifier.loggedIn
+              ? NavBarPage()
+              : _loggedOutInitialWidget(),
+        ),
+        FFRoute(
+          name: WelcomeIntroWidget.routeName,
+          path: WelcomeIntroWidget.routePath,
+          builder: (context, params) => WelcomeIntroWidget(),
         ),
         FFRoute(
           name: DiaryCompletePageWidget.routeName,
@@ -110,6 +126,11 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           name: AuthenticationWidget.routeName,
           path: AuthenticationWidget.routePath,
           builder: (context, params) => AuthenticationWidget(),
+        ),
+        FFRoute(
+          name: LegalWidget.routeName,
+          path: LegalWidget.routePath,
+          builder: (context, params) => LegalWidget(),
         ),
         FFRoute(
           name: ProfileWidget.routeName,

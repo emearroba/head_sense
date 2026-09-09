@@ -30,6 +30,18 @@ class UsersRecord extends FirestoreRecord {
   String get subjectId => _subjectId ?? '';
   bool hasSubjectId() => _subjectId != null;
 
+  // "termsAcceptedAt" / "termsVersion" fields - written by
+  // authentication_widget.dart right after account creation when the user
+  // checks the Terms/Privacy consent checkbox. See kLegalVersion in
+  // legal_widget.dart for what termsVersion actually points at today.
+  DateTime? _termsAcceptedAt;
+  DateTime? get termsAcceptedAt => _termsAcceptedAt;
+  bool hasTermsAcceptedAt() => _termsAcceptedAt != null;
+
+  String? _termsVersion;
+  String get termsVersion => _termsVersion ?? '';
+  bool hasTermsVersion() => _termsVersion != null;
+
   // "email" field.
   String? _email;
   String get email => _email ?? '';
@@ -160,6 +172,8 @@ class UsersRecord extends FirestoreRecord {
   void _initializeFields() {
     _uid = snapshotData['uid'] as String?;
     _subjectId = snapshotData['subjectId'] as String?;
+    _termsAcceptedAt = snapshotData['termsAcceptedAt'] as DateTime?;
+    _termsVersion = snapshotData['termsVersion'] as String?;
     _email = snapshotData['email'] as String?;
     _plan = snapshotData['plan'] as String?;
     _studyParticipant = snapshotData['studyParticipant'] as bool?;
