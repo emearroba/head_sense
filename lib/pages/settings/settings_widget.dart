@@ -96,7 +96,13 @@ class _SettingsWidgetState extends State<SettingsWidget> {
             const SizedBox(height: 12),
             _profileCard(context),
             const SizedBox(height: 12),
+            _howItWorksTile(context),
+            const SizedBox(height: 12),
+            _legalTile(context),
+            const SizedBox(height: 12),
             _signOutTile(context),
+            const SizedBox(height: 12),
+            _deleteAccountTile(context),
             const SizedBox(height: 28),
             _sectionTitle(context, 'Available Studies'),
             const SizedBox(height: 12),
@@ -407,6 +413,80 @@ class _SettingsWidgetState extends State<SettingsWidget> {
     }
   }
 
+  Widget _howItWorksTile(BuildContext context) {
+    return InkWell(
+      onTap: () => context.pushNamed(WelcomeIntroWidget.routeName),
+      borderRadius: BorderRadius.circular(12.0),
+      child: Container(
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: FlutterFlowTheme.of(context).secondaryBackground,
+          borderRadius: BorderRadius.circular(12.0),
+          border: Border.all(
+            color: FlutterFlowTheme.of(context).alternate,
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline_rounded,
+                color: FlutterFlowTheme.of(context).secondaryText),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'How Somatica works',
+                style: FlutterFlowTheme.of(context).bodyMedium.override(
+                      font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                      color: FlutterFlowTheme.of(context).primaryText,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                color: FlutterFlowTheme.of(context).secondaryText),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _legalTile(BuildContext context) {
+    return InkWell(
+      onTap: () => context.pushNamed(LegalWidget.routeName),
+      borderRadius: BorderRadius.circular(12.0),
+      child: Container(
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: FlutterFlowTheme.of(context).secondaryBackground,
+          borderRadius: BorderRadius.circular(12.0),
+          border: Border.all(
+            color: FlutterFlowTheme.of(context).alternate,
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.description_outlined,
+                color: FlutterFlowTheme.of(context).secondaryText),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'Terms & Privacy',
+                style: FlutterFlowTheme.of(context).bodyMedium.override(
+                      font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                      color: FlutterFlowTheme.of(context).primaryText,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                color: FlutterFlowTheme.of(context).secondaryText),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _signOutTile(BuildContext context) {
     return InkWell(
       onTap: () => _confirmSignOut(context),
@@ -485,6 +565,99 @@ class _SettingsWidgetState extends State<SettingsWidget> {
       if (context.mounted) {
         context.goNamed(AuthenticationWidget.routeName);
       }
+    }
+  }
+
+  // Required for Apple App Store Review Guideline 5.1.1(v) (in-app account
+  // deletion, not just a support-request flow). authManager.deleteUser
+  // already existed (firebase_auth_manager.dart) but had no UI calling it -
+  // it calls FirebaseAuth's currentUser.delete(), which fires the
+  // onUserDeleted cloud function trigger (firebase/functions/index.js) that
+  // does the actual Firestore cleanup (diary_entries, dashboard,
+  // health_samples, diary_todo, reminders, the user doc itself).
+  Widget _deleteAccountTile(BuildContext context) {
+    return InkWell(
+      onTap: () => _confirmDeleteAccount(context),
+      borderRadius: BorderRadius.circular(12.0),
+      child: Container(
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: FlutterFlowTheme.of(context).secondaryBackground,
+          borderRadius: BorderRadius.circular(12.0),
+          border: Border.all(
+            color: FlutterFlowTheme.of(context).error,
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.delete_forever_outlined,
+                color: FlutterFlowTheme.of(context).error),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'Delete account',
+                style: FlutterFlowTheme.of(context).bodyMedium.override(
+                      font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                      color: FlutterFlowTheme.of(context).error,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+            Icon(Icons.chevron_right,
+                color: FlutterFlowTheme.of(context).secondaryText),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+        title: Text(
+          'Delete your account?',
+          style: FlutterFlowTheme.of(context).titleSmall.override(
+                fontWeight: FontWeight.w600,
+                color: FlutterFlowTheme.of(context).primaryText,
+              ),
+        ),
+        content: Text(
+          'This permanently deletes your account and all your data - diary '
+          'entries, dashboard history, reminders, and any connected health '
+          'data. This cannot be undone.',
+          style: FlutterFlowTheme.of(context).bodyMedium.override(
+                color: FlutterFlowTheme.of(context).secondaryText,
+              ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('Cancel',
+                style: TextStyle(
+                    color: FlutterFlowTheme.of(context).secondaryText)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text('Delete permanently',
+                style: TextStyle(
+                    color: FlutterFlowTheme.of(context).error,
+                    fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await authManager.deleteUser(context);
+    // deleteUser swallows FirebaseAuthException internally (shows its own
+    // snackbar on requires-recent-login) rather than rethrowing, so success
+    // is read back via whether a user is still signed in afterward.
+    if (context.mounted && !loggedIn) {
+      context.goNamed(AuthenticationWidget.routeName);
     }
   }
 

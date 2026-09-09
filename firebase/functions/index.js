@@ -206,7 +206,74 @@ function getCharForIndex(charIdx) {
     return String.fromCharCode("a".charCodeAt(0) + charIdx - 36);
   }
 }
+// Deletes a batch of query results in chunks of Firestore's 500-writes-per-
+// batch limit. Fine as a single un-paginated .get() at one account's data
+// volume (a diary_entries/diary_todo/notifications history is at most a few
+// thousand docs for one person, not the whole collection) - not meant for
+// bulk/admin-wide deletes.
+async function deleteQueryInBatches(query) {
+  const snap = await query.get();
+  if (snap.empty) return;
+  const chunks = [];
+  for (let i = 0; i < snap.docs.length; i += 500) {
+    const batch = firestore.batch();
+    snap.docs.slice(i, i + 500).forEach((doc) => batch.delete(doc.ref));
+    chunks.push(batch.commit());
+  }
+  await Promise.all(chunks);
+}
+
+// Required for Apple App Store Review Guideline 5.1.1(v) (in-app account
+// deletion) - the client calls FirebaseAuth's own currentUser.delete() (see
+// auth_util.dart's deleteAccount), which fires this trigger regardless of
+// how the Auth account ends up deleted. Cleans up every place this uid or
+// its pseudonymous subjectId (see assign_subject_id.js) owns data, per the
+// collections listed in firestore.rules:
+//  - users/{uid} itself, plus its reminders/fcm_tokens subcollections
+//    (recursiveDelete covers all three in one call)
+//  - diary_todo docs (uid-owned, not pseudonymized - see firestore.rules)
+//  - notifications addressed to this user (noti_received_by holds a
+//    DocumentReference to users/{uid}, set by scheduled_reminders.js)
+//  - subjectId-owned clinical data: diary_entries (each recursively, to
+//    also remove its responses subcollection), dashboard docs, and
+//    subjects/{subjectId} (covers health_samples)
+// A user created before assignSubjectId shipped and who never opened the
+// app again to backfill one (see ensureSubjectIdReady) has no subjectId to
+// clean up under - only the uid-owned data above applies to them.
 exports.onUserDeleted = functions.auth.user().onDelete(async (user) => {
-  let firestore = admin.firestore();
-  let userRef = firestore.doc("users/" + user.uid);
+  const userRef = firestore.doc("users/" + user.uid);
+  const userSnap = await userRef.get();
+  const subjectId = userSnap.exists ? userSnap.data().subjectId : undefined;
+
+  const deletions = [
+    firestore.recursiveDelete(userRef),
+    deleteQueryInBatches(
+      firestore.collection("diary_todo").where("uid", "==", user.uid),
+    ),
+    deleteQueryInBatches(
+      firestore
+        .collection("notifications")
+        .where("noti_received_by", "==", userRef),
+    ),
+  ];
+
+  if (subjectId) {
+    deletions.push(
+      firestore.recursiveDelete(firestore.doc("subjects/" + subjectId)),
+      deleteQueryInBatches(
+        firestore.collection("dashboard").where("subjectId", "==", subjectId),
+      ),
+      (async () => {
+        const entriesSnap = await firestore
+          .collection("diary_entries")
+          .where("subjectId", "==", subjectId)
+          .get();
+        await Promise.all(
+          entriesSnap.docs.map((doc) => firestore.recursiveDelete(doc.ref)),
+        );
+      })(),
+    );
+  }
+
+  await Promise.all(deletions);
 });
