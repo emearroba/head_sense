@@ -2,7 +2,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /diary_todo/{document} {
-      allow create: if request.resource.data.user_name == /databases/$(database)/documents/users/$(request.auth.uid);
+      // Was checking a `user_name` field the client never actually writes
+      // (createDiaryTodoRecordData/diary_todo_record.dart only ever set
+      // diary_name/is_done/uid) - every create was silently permission-
+      // denied. Checks the same `uid` field read/update already use below.
+      // Personal task list, not clinical data, so intentionally kept on the
+      // plain uid ownership model rather than migrated to subjectId.
+      allow create: if request.resource.data.uid == request.auth.uid;
       allow read: if request.auth.uid == resource.data.uid;
       // Same `write` vs `update` gap as diary_entries/responses below -
       // marking a todo "Done" (diary_todo_list_widget.dart) is an update on

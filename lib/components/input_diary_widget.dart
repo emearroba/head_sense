@@ -269,6 +269,7 @@ class _InputDiaryWidgetState extends State<InputDiaryWidget> {
                                             .diaryNameTextFieldTextController
                                             .text,
                                         isDone: false,
+                                        uid: currentUserUid,
                                       ));
                                   Navigator.pop(context);
                                 },

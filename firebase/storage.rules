@@ -5,7 +5,11 @@ service firebase.storage {
       allow read, write: if false;
     }
     match /users/{userId}/{allPaths=**} {
-      allow read: if true;
+      // Was `allow read: if true` - any file under any user's path (e.g. a
+      // future profile photo/upload feature built on this existing pattern)
+      // would be publicly readable with no auth at all. No feature uploads
+      // to Storage today, but the rule should be correct before one exists.
+      allow read: if request.auth.uid == userId;
       allow write: if request.auth.uid == userId;
     }
   }

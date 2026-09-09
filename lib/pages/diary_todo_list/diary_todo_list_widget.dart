@@ -145,10 +145,15 @@ class _DiaryTodoListWidgetState extends State<DiaryTodoListWidget> {
                 padding: EdgeInsetsDirectional.fromSTEB(0.0, 12.0, 0.0, 44.0),
                 child: StreamBuilder<List<DiaryTodoRecord>>(
                   stream: queryDiaryTodoRecord(
-                    queryBuilder: (diaryTodoRecord) => diaryTodoRecord.where(
-                      'is_done',
-                      isEqualTo: false,
-                    ),
+                    queryBuilder: (diaryTodoRecord) => diaryTodoRecord
+                        .where(
+                          'uid',
+                          isEqualTo: currentUserUid,
+                        )
+                        .where(
+                          'is_done',
+                          isEqualTo: false,
+                        ),
                   ),
                   builder: (context, snapshot) {
                     // Customize what your widget looks like when it's loading.
