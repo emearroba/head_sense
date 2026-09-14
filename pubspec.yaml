@@ -1,5 +1,5 @@
 name: head_sense
-description: Daily headache and symptom tracker with reminders and personalized insights.
+description: Daily symptom tracker with reminders and personalized insights.
 
 # The following line prevents the package from being accidentally published to
 # pub.dev using `pub publish`. This is preferred for private packages.

@@ -256,6 +256,14 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
     DashboardRecord focus,
     List<_Discovery> discoveries,
   ) {
+    // Insights unlock once completionRate >= 0.8 (see
+    // update_dashboard_metric.js) - mirror that threshold here so the
+    // "not enough data yet" message can tell the user how many more days
+    // they specifically need, not just the raw percentage.
+    final totalDays = widget.totalDays;
+    final trackedDays = (focus.completionRate * totalDays).round();
+    final neededDays = (0.8 * totalDays).ceil();
+    final remainingDays = (neededDays - trackedDays).clamp(1, totalDays);
     return Padding(
       padding: const EdgeInsets.only(bottom: 24.0),
       child: Column(
@@ -273,8 +281,9 @@ class _PatternInsightsPanelState extends State<PatternInsightsPanel> {
             _emptyCard(
               context,
               "You've logged ${(focus.completionRate * 100).round()}% of "
-              'days this period — a bit more consistency will unlock your '
-              'insight cards.',
+              'days this period ($trackedDays of $totalDays) — log '
+              '$remainingDays more ${remainingDays == 1 ? 'day' : 'days'} '
+              'to unlock your insight cards.',
             )
           else if (!eligible)
             _emptyCard(

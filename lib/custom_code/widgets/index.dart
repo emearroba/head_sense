@@ -23,3 +23,4 @@ export 'diary_completed_card.dart' show DiaryCompletedCard;
 export 'orbit_logo.dart' show OrbitLogo;
 export 'app_section_header.dart' show AppSectionHeader;
 export 'period_selector_bubble.dart' show PeriodSelectorBubble;
+export 'intro_orbit_connector.dart' show IntroOrbitConnector;

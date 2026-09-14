@@ -1,4 +1,4 @@
-import '/app_state.dart';
+import '/custom_code/widgets/index.dart' as custom_widgets;
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/index.dart';
@@ -6,40 +6,34 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class _IntroSlide {
-  final IconData icon;
   final String title;
   final String description;
-  const _IntroSlide(this.icon, this.title, this.description);
+  const _IntroSlide(this.title, this.description);
 }
 
 const List<_IntroSlide> _kSlides = [
   _IntroSlide(
-    Icons.favorite_rounded,
     'Welcome to Somatica',
-    'A simple way to track your headaches and understand your body\'s '
+    'A simple way to track your symptoms and understand your body\'s '
         'patterns over time.',
   ),
   _IntroSlide(
-    Icons.edit_calendar_rounded,
     'Log a few symptoms each day',
     'A quick daily check-in — severity, triggers, sleep, medication. '
         'Takes under a minute.',
   ),
   _IntroSlide(
-    Icons.insights_rounded,
     'See your dashboard',
     'Watch trends, streaks, and severity over the last 30, 90, or 365 '
         'days, all in one place.',
   ),
   _IntroSlide(
-    Icons.hub_rounded,
     'Discover patterns',
     'Somatica looks for connections between your symptoms and things '
         'like sleep, stress, or the weather — general information, not a '
         'diagnosis. Always talk to your doctor about what you find.',
   ),
   _IntroSlide(
-    Icons.notifications_active_rounded,
     'Stay consistent',
     'Set a daily reminder so logging becomes a habit — the more you '
         'track, the clearer the picture.',
@@ -108,6 +102,14 @@ class _WelcomeIntroWidgetState extends State<WelcomeIntroWidget> {
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: custom_widgets.IntroOrbitConnector(
+                activeIndex: _page,
+                count: _kSlides.length,
+                size: 176.0,
+              ),
+            ),
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
@@ -120,34 +122,33 @@ class _WelcomeIntroWidgetState extends State<WelcomeIntroWidget> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
-                          width: 96.0,
-                          height: 96.0,
-                          decoration: BoxDecoration(
-                            color: theme.primary.withValues(alpha: 0.14),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(slide.icon, size: 44.0, color: theme.primary),
-                        ),
-                        const SizedBox(height: 32.0),
-                        Text(
-                          slide.title,
-                          textAlign: TextAlign.center,
-                          style: theme.headlineMedium.override(
-                            font: GoogleFonts.plusJakartaSans(
-                                fontWeight: FontWeight.w700),
-                            color: theme.primaryText,
-                            fontSize: 24.0,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 12.0),
-                        Text(
-                          slide.description,
-                          textAlign: TextAlign.center,
-                          style: theme.bodyMedium.override(
-                            color: theme.secondaryText,
-                            lineHeight: 1.4,
+                        ConstrainedBox(
+                          // Caps line length on wide/web viewports - full-width
+                          // text at desktop widths was hard to read.
+                          constraints: const BoxConstraints(maxWidth: 440.0),
+                          child: Column(
+                            children: [
+                              Text(
+                                slide.title,
+                                textAlign: TextAlign.center,
+                                style: theme.headlineMedium.override(
+                                  font: GoogleFonts.plusJakartaSans(
+                                      fontWeight: FontWeight.w700),
+                                  color: theme.primaryText,
+                                  fontSize: 24.0,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 12.0),
+                              Text(
+                                slide.description,
+                                textAlign: TextAlign.center,
+                                style: theme.bodyMedium.override(
+                                  color: theme.secondaryText,
+                                  lineHeight: 1.4,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],

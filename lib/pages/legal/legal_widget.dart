@@ -6,8 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 // whenever _termsSections/_privacySections materially change, so
 // UsersRecord.termsVersion (written at signup - see
 // authentication_widget.dart) records which version a given user agreed
-// to. Self-drafted, not reviewed by a lawyer - see _disclaimerNote below.
-const String kLegalVersion = '2026-09-09';
+// to.
+const String kLegalVersion = '2026-09-14';
 
 class LegalWidget extends StatelessWidget {
   const LegalWidget({super.key});
@@ -45,24 +45,8 @@ class LegalWidget extends StatelessWidget {
             const SizedBox(height: 12.0),
             ..._privacySections.map((s) => _paragraph(theme, s)),
             const SizedBox(height: 24.0),
-            _disclaimerNote(theme),
-            const SizedBox(height: 24.0),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _disclaimerNote(FlutterFlowTheme theme) {
-    return Text(
-      'This document was written by the Somatica team without a lawyer. '
-      'It is meant to be accurate and complete for the app as it works '
-      'today, but if you plan to operate at scale or in a region with '
-      'specific health-data or consumer-protection rules, have it '
-      'reviewed by counsel for that region.',
-      style: theme.bodySmall.override(
-        color: theme.secondaryText,
-        fontStyle: FontStyle.italic,
       ),
     );
   }
@@ -92,11 +76,11 @@ class LegalWidget extends StatelessWidget {
   }
 
   static const List<String> _termsSections = [
-    'Last updated: September 9, 2026 — version $kLegalVersion.',
+    'Last updated: September 14, 2026 — version $kLegalVersion.',
     '1. Acceptance. By creating an account you agree to these Terms and to '
         'the Privacy Policy below. If you do not agree, do not use the app.',
-    '2. Not medical advice. Somatica (HeadSense) helps you track headache '
-        'symptoms, triggers, and patterns. It is not a medical device, does '
+    '2. Not medical advice. Somatica helps you track symptoms, triggers, '
+        'and patterns. It is not a medical device, does '
         'not diagnose any condition, and nothing shown in the app — '
         'including charts, streaks, or "pattern" correlations — is medical '
         'advice. Always talk to a qualified doctor about your symptoms and '
@@ -113,10 +97,14 @@ class LegalWidget extends StatelessWidget {
         'optional and can be withdrawn at any time by leaving the study or '
         'turning the setting back off. Each study you can join in the app '
         'describes its own specific purpose and data use before you enroll.',
-    '6. Fees. Somatica does not currently charge for any feature. If paid '
-        'plans are introduced later, purchases on iOS/Android will go '
-        'through the App Store / Play Store\'s standard in-app purchase '
-        'system, and these Terms will be updated first.',
+    '6. Fees. Somatica is a paid app. Current pricing and any free trial '
+        'are shown in the App Store / Play Store listing and inside the '
+        'app before you\'re charged. Purchases and subscriptions are '
+        'billed and managed through Apple\'s or Google\'s standard in-app '
+        'purchase system — you can view, change, or cancel a subscription '
+        'at any time from your Apple ID / Google Play account settings. '
+        'We\'ll update these Terms if the pricing model materially '
+        'changes.',
     '7. No warranty; limitation of liability. Somatica is provided "as '
         'is" and "as available," without warranties of any kind, to the '
         'maximum extent permitted by applicable law. We are not liable for '
@@ -135,7 +123,7 @@ class LegalWidget extends StatelessWidget {
   ];
 
   static const List<String> _privacySections = [
-    'Last updated: September 9, 2026 — version $kLegalVersion.',
+    'Last updated: September 14, 2026 — version $kLegalVersion.',
     '1. What we collect. Account info (email); diary entries you log '
         '(symptom severity, triggers, medication use); if you connect '
         'Apple Health / Health Connect, read-only sleep, steps, and heart '
@@ -145,7 +133,7 @@ class LegalWidget extends StatelessWidget {
         'insights back to you; to send reminders you set up; and, only if '
         'you opt in, for research (see Terms §5). Health data read from '
         'Apple Health / Health Connect is used solely to find patterns '
-        'with your own headaches — it is never sold, and never used for '
+        'with your own symptoms — it is never sold, and never used for '
         'advertising or shared with data brokers.',
     '3. Where it\'s stored. Your diary, dashboard, and health data are '
         'stored in Google Firebase/Firestore, keyed by a random '
@@ -154,9 +142,11 @@ class LegalWidget extends StatelessWidget {
         'write it.',
     '4. Who else sees it. Google/Firebase (our hosting and backend '
         'provider) processes data on our behalf as required to run the '
-        'app. We do not currently integrate any payment processor, '
-        'advertising network, or third-party AI service, so no data is '
-        'shared with one. We don\'t sell your data to anyone.',
+        'app. Purchases are handled entirely by Apple\'s or Google\'s '
+        'in-app purchase systems — we never see or store your payment '
+        'details. We do not integrate any advertising network or '
+        'third-party AI service, so no data is shared with one. We '
+        'don\'t sell your data to anyone.',
     '5. Data retention. We keep your data as long as your account exists. '
         'You can permanently delete your account and everything tied to '
         'it — diary entries, dashboard history, reminders, and any '
