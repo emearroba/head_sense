@@ -1,4 +1,4 @@
-package com.mycompany.headsense
+package com.picklelabs.somatica
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

@@ -12,7 +12,20 @@
           "package_name": "com.mycompany.headsense"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "373987499196-4d7dom2mn76l4n00pjh26rl8uv3q7e7f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mycompany.headsense",
+            "certificate_hash": "9bbb3186b2189ef16d8f272bdab59362c395cbb4"
+          }
+        },
+        {
+          "client_id": "373987499196-fbq5khvnsuts44rkei5j5vog66gr4lri.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCb4RiHJhgY_FBf2ZGanYUPqlYCQ6HNTrA"
@@ -20,7 +33,55 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "373987499196-fbq5khvnsuts44rkei5j5vog66gr4lri.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "373987499196-e5en8qn7349m4uevul6g1a3l6qqfp5pf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mycompany.headsense"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:373987499196:android:6894db5a8c95266c47c4b9",
+        "android_client_info": {
+          "package_name": "com.picklelabs.somatica"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "373987499196-fbq5khvnsuts44rkei5j5vog66gr4lri.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCb4RiHJhgY_FBf2ZGanYUPqlYCQ6HNTrA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "373987499196-fbq5khvnsuts44rkei5j5vog66gr4lri.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "373987499196-e5en8qn7349m4uevul6g1a3l6qqfp5pf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mycompany.headsense"
+              }
+            }
+          ]
         }
       }
     }

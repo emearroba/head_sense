@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>373987499196-1g1rc5grc321hjhls07k7jskorvgut0n.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.373987499196-1g1rc5grc321hjhls07k7jskorvgut0n</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>373987499196-4d7dom2mn76l4n00pjh26rl8uv3q7e7f.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
 	<string>AIzaSyBPS2VCW8b1XJjOq_WsDBsEIuSwuJnxgHI</string>
 	<key>GCM_SENDER_ID</key>
@@ -9,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.mycompany.headsense</string>
+	<string>com.picklelabs.somatica</string>
 	<key>PROJECT_ID</key>
 	<string>head-sense-1111</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:373987499196:ios:1df6cf477885d0d347c4b9</string>
+	<string>1:373987499196:ios:c5d1beaf27fc2c9747c4b9</string>
 </dict>
 </plist>
