@@ -27,6 +27,7 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/firebase/public/
 
 # Android related
 **/android/**/gradle-wrapper.jar
